@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fmt::{Display}};
+use std::{collections::HashMap, fmt::Display};
 
 use num_traits::PrimInt;
 
@@ -11,9 +11,9 @@ use crate::{
 #[derive(Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub struct SymbolIdx(usize);
 
-impl std::fmt::Display for SymbolIdx{
+impl std::fmt::Display for SymbolIdx {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self.0+1).fmt(f)
+        (self.0 + 1).fmt(f)
     }
 }
 
@@ -30,9 +30,9 @@ pub enum SymbolType {
     Data,
 }
 
-impl Display for SymbolType{
+impl Display for SymbolType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let ident = match self{
+        let ident = match self {
             SymbolType::Unresolved => "unresolved",
             SymbolType::Notype => "notype",
             SymbolType::Section => "section",
@@ -54,9 +54,9 @@ pub enum SymbolVisibility {
     Weak,
 }
 
-impl Display for SymbolVisibility{
+impl Display for SymbolVisibility {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let ident = match self{
+        let ident = match self {
             SymbolVisibility::Local => "local",
             SymbolVisibility::Global => "global",
             SymbolVisibility::Weak => "weak",
@@ -86,7 +86,7 @@ impl<T: PrimInt> Symbol<T> {
             offset: num_traits::zero(),
         }
     }
-    
+
     pub fn name(&self) -> StrIdx {
         self.name
     }
@@ -173,12 +173,19 @@ impl<T: PrimInt> Symbols<T> {
         });
     }
 
-    pub fn symbols(&self) -> impl Iterator<Item = (SymbolIdx, &Symbol<T>)>{
-        self.symbols.iter().enumerate().map(|(i, s)|(SymbolIdx(i), s))
+    pub fn symbols(&self) -> impl Iterator<Item = (SymbolIdx, &Symbol<T>)> {
+        self.symbols
+            .iter()
+            .enumerate()
+            .map(|(i, s)| (SymbolIdx(i), s))
     }
-    
+
     pub fn len(&self) -> usize {
-        self.symbols.len()+1
+        self.symbols.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
     }
 
     pub(super) fn symbol_dbg_entry(
@@ -188,10 +195,7 @@ impl<T: PrimInt> Symbols<T> {
         self.symbol_dbg_map.entry(symbol_idx)
     }
 
-    pub fn get_symbol_dbg(
-        &self,
-        symbol_idx: SymbolIdx,
-    ) -> Option<&SymbolDbg> {
+    pub fn get_symbol_dbg(&self, symbol_idx: SymbolIdx) -> Option<&SymbolDbg> {
         self.symbol_dbg_map.get(&symbol_idx)
     }
 }

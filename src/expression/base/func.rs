@@ -42,15 +42,17 @@ impl<'a, 'b, L: AssemblyLanguage<'a>> ExpressionEvaluator<'a, 'b, L> {
                                     match result.write_asm_str(str) {
                                         Ok(_) => {}
                                         Err(WriteStrError::CannotWriteByteStrToRegularString) => {
+                                            use crate::ansi::*;
                                             ctx.context.report(
                                                 LogEntry::new().error(vn, "byte strings can contain values which are not permitted in ordinary strings")
-                                                .hint(formt_n, format!("consider adding leading `b` {}b{}{}", crate::logs::GREEN, crate::logs::RESET, formt_n.src_slice(),))
+                                                .hint(formt_n, format!("consider adding leading `b` {GREEN}b{RESET}{}", formt_n.src_slice(),))
                                             );
                                         }
                                         Err(WriteStrError::CannotWriteCStrToRegularString) => {
+                                            use crate::ansi::*;
                                             ctx.context.report(
                                                 LogEntry::new().error(vn, "c strings can contain values which are not permitted in ordinary strings")
-                                                .hint(formt_n, format!("consider adding leading `c` {}c{}{}", crate::logs::GREEN, crate::logs::RESET, formt_n.src_slice(),))
+                                                .hint(formt_n, format!("consider adding leading `c` {GREEN}c{RESET}{}", formt_n.src_slice(),))
                                             );
                                         }
                                     }
@@ -71,9 +73,9 @@ impl<'a, 'b, L: AssemblyLanguage<'a>> ExpressionEvaluator<'a, 'b, L> {
             }
             "include_bytes" => {
                 if let Node(PathArg::Val(Some(path)), n) = func.coerced_args(lang, &mut ctx) {
-                    match ctx.context.get_source_from_path(path) {
-                        Ok(str) => Value::Constant(Constant::Str(
-                            crate::expression::AsmStr::ByteStr(str.contents.as_bytes()),
+                    match ctx.context.get_bin(path) {
+                        Ok(bytes) => Value::Constant(Constant::Str(
+                            crate::expression::AsmStr::ByteStr(bytes),
                         )),
                         Err(err) => {
                             ctx.context
@@ -87,7 +89,7 @@ impl<'a, 'b, L: AssemblyLanguage<'a>> ExpressionEvaluator<'a, 'b, L> {
             }
             "include_str" => {
                 if let Node(PathArg::Val(Some(path)), n) = func.coerced_args(lang, &mut ctx) {
-                    match ctx.context.get_source_from_path(path) {
+                    match ctx.context.get_text(path) {
                         Ok(str) => Value::Constant(Constant::Str(crate::expression::AsmStr::Str(
                             str.contents,
                         ))),

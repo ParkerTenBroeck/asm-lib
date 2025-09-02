@@ -21,8 +21,8 @@ impl StringTable {
         if let Some(idx) = self.map.get(str) {
             return *idx;
         }
-        if str.is_empty(){
-            return StrIdx(0)
+        if str.is_empty() {
+            return StrIdx(0);
         }
         let idx = StrIdx(self.data.len());
         self.data.push_str(str);

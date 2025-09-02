@@ -1,37 +1,67 @@
-use crate::assembler::{Assembler, lang::AssemblyLanguage};
-
-use crate::config::AssemblerConfig;
-use crate::context::Context;
-use crate::logs::LogEntry;
-use crate::node::NodeOwned;
-use crate::preprocess::PreProcessor;
-use bumpalo::Bump;
-use std::collections::HashMap;
-use std::fmt::Display;
-use std::path::{Path, PathBuf};
-use std::time::Instant;
-
 pub mod assembler;
 pub mod expression;
 pub mod lex;
 pub mod preprocess;
 pub mod simple;
 
+pub mod ansi;
 pub mod config;
 pub mod context;
 pub mod logs;
 pub mod node;
+pub mod source;
 pub mod util;
 
-pub struct AssemblerResult {
-    pub time: f64,
-    pub allocated: usize,
-    pub output: Vec<u8>,
-    pub log: Vec<LogEntry<NodeOwned>>,
+pub use bumpalo;
+
+pub use assembler::lang::*;
+pub use assembler::*;
+pub use config::AssemblerConfig;
+pub use context::*;
+pub use lex::*;
+pub use logs::*;
+pub use preprocess::PreProcessor;
+
+use bumpalo::Bump;
+use std::path::Path;
+use std::time::Instant;
+
+use crate::source::Sources;
+
+pub fn assemble<'a, L: AssemblyLanguage<'a>>(
+    mut lang: L,
+    mut preprocessor: PreProcessor<'a, L>,
+    config: AssemblerConfig,
+    source: &'a Path,
+    supplier: Sources<'a>,
+    bump: &'a Bump,
+) -> AssemblerResult<L::AssembledResult> {
+    let now = Instant::now();
+    let mut context = Context::new(source, bump, config, supplier);
+
+    let output = Assembler::assemble(&mut context, &mut lang, &mut preprocessor);
+
+    let elapsed = now.elapsed().as_secs_f64();
+
+    AssemblerResult {
+        allocated: bump.allocated_bytes(),
+        time: elapsed,
+        output,
+        log: context.take_logs(),
+    }
 }
 
-impl std::fmt::Display for AssemblerResult {
+pub struct AssemblerResult<T> {
+    pub time: f64,
+    pub allocated: usize,
+    pub output: T,
+    pub log: Logs<NodeOwned>,
+}
+
+impl<T> std::fmt::Display for AssemblerResult<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        use crate::ansi::*;
+        use crate::logs::*;
         let mut errors = 0;
         let mut warnings = 0;
         for log in &self.log {
@@ -47,8 +77,6 @@ impl std::fmt::Display for AssemblerResult {
                 .count();
             writeln!(f, "{log}")?;
         }
-
-        use logs::*;
 
         if warnings > 0 {
             writeln!(
@@ -69,42 +97,5 @@ impl std::fmt::Display for AssemblerResult {
                 self.time, self.allocated
             )
         }
-    }
-}
-
-pub fn with_bump<R>(func: impl FnOnce(&Bump) -> R) -> R {
-    func(&Bump::new())
-}
-
-pub fn assemble_and_link<'a>(
-    sources: &'a HashMap<PathBuf, String>,
-    files: Vec<&'a Path>,
-    bump: &'a Bump,
-    mut lang: impl AssemblyLanguage<'a, AssembledResult: Display>,
-) -> AssemblerResult {
-    let now = Instant::now();
-    let mut context = Context::new(bump, AssemblerConfig::new(), move |path, _ctx| {
-        if let Some(contents) = sources.get(path) {
-            Ok(contents.as_str())
-        } else {
-            Err(format!("No source found with path '{}'", path.display()).into())
-        }
-    });
-    let mut preprocessor = PreProcessor::new();
-
-    let mut assember = Assembler::new(&mut context, &mut lang, &mut preprocessor);
-
-    for file in files {
-        let res = assember.assemble(file);
-        println!("{res}");
-    }
-
-    let elapsed = now.elapsed().as_secs_f64();
-
-    AssemblerResult {
-        allocated: bump.allocated_bytes(),
-        time: elapsed,
-        output: Vec::new(),
-        log: context.take_logs(),
     }
 }

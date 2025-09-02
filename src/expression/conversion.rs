@@ -1,4 +1,4 @@
-use crate::AssemblyLanguage;
+use crate::assembler::lang::AssemblyLanguage;
 use crate::expression::AsmStr;
 use crate::expression::Constant;
 use crate::expression::ValueType;
@@ -579,14 +579,11 @@ impl<T> ConversionResult<T> {
                     } else {
                         LogKind::Warning
                     };
+                    use crate::ansi::*;
                     ctx.report(LogEntry::new().add(node, kind, $msg).hint_locless(format!(
-                        "consider adding explicit cast '{}({}{}{}) as {}{}'",
-                        crate::logs::GREEN,
-                        crate::logs::RESET,
+                        "consider adding explicit cast '{GREEN}({RESET}{}{GREEN}) as {}{RESET}'",
                         node.src_slice(),
-                        crate::logs::GREEN,
                         desired_ty,
-                        crate::logs::RESET
                     )));
                     $cfg.is_warning().then_some($value)
                 }

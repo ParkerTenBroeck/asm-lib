@@ -167,16 +167,9 @@ impl<'a, T: AssemblyLanguage<'a>> PreProcessor<'a, T> {
         }
     }
 
-    pub fn begin(
-        &mut self,
-        mut ctx: PreProcessorCtx<'a, '_, T>,
-        path: &'a Path,
-    ) -> Option<SourceRef<'a>> {
-        self.macros.clear();
-        self.stack.clear();
-        self.peek = None;
-
-        self.include(&mut ctx, path, Parent::None)
+    pub fn begin(&mut self, mut ctx: PreProcessorCtx<'a, '_, T>) {
+        let path = ctx.context.src().path;
+        self.include(&mut ctx, path, Parent::None);
     }
 
     pub fn top_parent(&mut self) -> Parent<NodeRef<'a>> {

@@ -1,9 +1,6 @@
-use std::collections::{HashMap};
+use std::collections::HashMap;
 
-use crate::{
-    node::NodeOwned,
-    simple::trans::{reloc::RelocIdx},
-};
+use crate::{node::NodeOwned, simple::trans::reloc::RelocIdx};
 
 #[derive(Clone, Debug)]
 pub struct DataDbg {

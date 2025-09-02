@@ -41,7 +41,7 @@ impl<T: TranslationUnitMachine> Section<T> {
         }
     }
 
-    pub fn name(&self) -> StrIdx{
+    pub fn name(&self) -> StrIdx {
         self.name
     }
 }

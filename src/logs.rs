@@ -1,6 +1,71 @@
+use crate::ansi::*;
 use crate::node::NodeTrait;
 use crate::node::Source;
 use std::fmt::Write;
+
+#[derive(Debug, Clone)]
+pub struct Logs<T: NodeTrait> {
+    logs: Vec<LogEntry<T>>,
+}
+
+impl<T: NodeTrait> Default for Logs<T> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<T: NodeTrait> Logs<T> {
+    pub const fn new() -> Self {
+        Self { logs: Vec::new() }
+    }
+
+    pub fn report(&mut self, entry: LogEntry<T>) {
+        self.logs.push(entry);
+    }
+
+    pub fn report_error_locless(&mut self, msg: impl ToString) {
+        self.report(LogEntry::new().error_locless(msg));
+    }
+
+    pub fn report_warning_locless(&mut self, msg: impl ToString) {
+        self.report(LogEntry::new().warning_locless(msg));
+    }
+
+    pub fn report_info_locless(&mut self, msg: impl ToString) {
+        self.report(LogEntry::new().info_locless(msg));
+    }
+
+    pub fn report_hint_locless(&mut self, msg: impl ToString) {
+        self.report(LogEntry::new().hint_locless(msg));
+    }
+
+    pub fn report_error(&mut self, node: T, error: impl ToString) {
+        self.report(LogEntry::new().error(node, error));
+    }
+
+    pub fn report_warning(&mut self, node: T, error: impl ToString) {
+        self.report(LogEntry::new().warning(node, error));
+    }
+
+    pub fn report_info(&mut self, node: T, error: impl ToString) {
+        self.report(LogEntry::new().info(node, error));
+    }
+
+    pub fn take(&mut self) -> Self {
+        let mut other = Self::new();
+        std::mem::swap(self, &mut other);
+        other
+    }
+}
+
+impl<'a, T: NodeTrait> IntoIterator for &'a Logs<T> {
+    type Item = &'a LogEntry<T>;
+    type IntoIter = std::slice::Iter<'a, LogEntry<T>>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.logs.iter()
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LogKind {
@@ -14,13 +79,14 @@ pub enum LogKind {
     Included,
 }
 
+#[derive(Debug, Clone)]
 pub struct LogPart<T: NodeTrait> {
     pub node: Option<T>,
     pub kind: LogKind,
     pub msg: Option<String>,
 }
 
-#[derive(Default)]
+#[derive(Default, Debug, Clone)]
 pub struct LogEntry<T: NodeTrait> {
     pub parts: Vec<LogPart<T>>,
 }
@@ -103,13 +169,6 @@ impl<T: NodeTrait + Clone> LogEntry<T> {
         self
     }
 }
-
-pub const BOLD: &str = "\x1b[1m";
-pub const RED: &str = "\x1b[31m";
-pub const YELLOW: &str = "\x1b[33m";
-pub const BLUE: &str = "\x1b[34m";
-pub const GREEN: &str = "\x1b[32m";
-pub const RESET: &str = "\x1b[0;22m";
 
 pub fn expand_range_to_start_end_line(
     range: std::ops::Range<usize>,

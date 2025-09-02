@@ -109,7 +109,7 @@ impl<'a, 'b, L: AssemblyLanguage<'a>> ExpressionEvaluator<'a, 'b, L> {
             ($num:ty) => {{
                 let v = <$num>::from_str_radix(number, radix)
                     .inspect_err(|e| {
-                        use crate::LogEntry;
+                        use crate::logs::LogEntry;
                         match e.kind(){
                             IntErrorKind::NegOverflow | IntErrorKind::PosOverflow => {
                                 let smaller_larger = match e.kind() {
@@ -122,7 +122,8 @@ impl<'a, 'b, L: AssemblyLanguage<'a>> ExpressionEvaluator<'a, 'b, L> {
                                         .error(n, format!("numeric literal too {smaller_larger} to fit in '{suffix}' valid range is {}..={}", <$num>::min_value(), <$num>::max_value()));
 
                                 if num.get_suffix().is_none() && hint == ValueType::Any {
-                                    error = error.hint_locless(format!("consider adding an explicit type suffix to the literal like {}{}i64{}", num.get_num(), crate::logs::GREEN, crate::logs::RESET))
+                                    use crate::ansi::*;
+                                    error = error.hint_locless(format!("consider adding an explicit type suffix to the literal like {}{GREEN}i64{RESET}", num.get_num()))
                                 }
 
                                 self.context.report(error);

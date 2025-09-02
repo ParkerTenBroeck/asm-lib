@@ -1,8 +1,11 @@
 use super::logs::LogEntry;
+use crate::Logs;
 use crate::config::AssemblerConfig;
 use crate::lex::Span;
 use crate::lex::Token;
 use crate::logs::LogPart;
+use crate::source::SourceInfo;
+use crate::source::Sources;
 use bumpalo::Bump;
 use std::fmt::Display;
 use std::path::Path;
@@ -16,49 +19,61 @@ pub type SourceSupplier<'a> =
 
 pub struct Context<'a> {
     bump: &'a Bump,
-    supplier: SourceSupplier<'a>,
-    source_map: HashMap<&'a Path, SourceRef<'a>>,
-    log: Vec<LogEntry<NodeOwned>>,
+
+    sources: Sources<'a>,
     top_src: SourceRef<'a>,
     top_src_eof: NodeRef<'a>,
+
+    logs: Logs<NodeOwned>,
+
     config: AssemblerConfig,
 
     owned_source_map: HashMap<*const SourceInfoRef<'a>, SourceOwned>,
     owned_node_map: HashMap<*const NodeInfoRef<'a>, NodeOwned>,
 }
 
-#[derive(Debug, Default)]
-pub struct Functioninfo {
-    pub frame_size: usize,
-}
-
 impl<'a> Context<'a> {
     pub fn new(
+        path: &'a Path,
         bump: &'a Bump,
         config: AssemblerConfig,
-        source_supplier: impl Fn(&'a Path, &Context<'a>) -> Result<&'a str, Box<dyn Error>> + 'a,
+        mut sources: Sources<'a>,
     ) -> Self {
-        const DEFAULT_PATH: &Path =
-            unsafe { std::mem::transmute::<&[u8], &Path>(b"<INVALID>".as_slice()) };
+        let mut logs = Logs::new();
+
+        let (top_src, top_src_eof) = match sources.get_text(bump, path) {
+            Ok(source) => (
+                source,
+                &*bump.alloc(NodeInfoRef {
+                    span: Span::empty(),
+                    source,
+                    parent: Parent::None,
+                }),
+            ),
+            Err(err) => {
+                logs.report_error_locless(format!(
+                    "cannot assemble file '{}': {err}",
+                    path.display()
+                ));
+
+                let source = bump.alloc(SourceInfoRef { path, contents: "" });
+                (
+                    &*source,
+                    &*bump.alloc(NodeInfoRef {
+                        span: Span::empty(),
+                        source,
+                        parent: Parent::None,
+                    }),
+                )
+            }
+        };
+
         Self {
             bump,
-            source_map: Default::default(),
-            supplier: Box::new(source_supplier),
-            log: Default::default(),
-            top_src: &SourceInfoRef {
-                path: DEFAULT_PATH,
-                contents: "<INVALID>",
-            },
-            top_src_eof: &const {
-                NodeInfoRef {
-                    span: Span::empty(),
-                    source: &SourceInfoRef {
-                        path: DEFAULT_PATH,
-                        contents: "<INVALID>",
-                    },
-                    parent: Parent::None,
-                }
-            },
+            sources,
+            logs,
+            top_src,
+            top_src_eof,
             config,
 
             owned_source_map: HashMap::new(),
@@ -70,19 +85,16 @@ impl<'a> Context<'a> {
         &self.config
     }
 
-    pub fn get_source_from_path(
-        &mut self,
-        path: &'a Path,
-    ) -> Result<&'a SourceInfoRef<'a>, Box<dyn Error>> {
-        if let Some(id) = self.source_map.get(path) {
-            return Ok(*id);
-        }
+    pub fn get_text(&mut self, path: &'a Path) -> Result<&'a SourceInfoRef<'a>, Box<dyn Error>> {
+        self.sources.get_text(self.bump, path)
+    }
 
-        // let path = self.bump.alloc_slice_copy(path.as_os_str().as_bytes());
-        let contents = (self.supplier)(path, self)?;
-        let source = self.bump.alloc(SourceInfoRef { path, contents });
-        self.source_map.insert(path, source);
-        Ok(source)
+    pub fn get_src(&mut self, path: &'a Path) -> Result<SourceInfo<'a>, Box<dyn Error>> {
+        self.sources.get_src(self.bump, path)
+    }
+
+    pub fn get_bin(&mut self, path: &'a Path) -> Result<&'a [u8], Box<dyn Error>> {
+        self.sources.get_bin(self.bump, path)
     }
 
     pub fn merge_nodes(&self, left: NodeRef<'a>, right: NodeRef<'a>) -> NodeRef<'a> {
@@ -108,8 +120,6 @@ impl<'a> Context<'a> {
                         span: lhs.span.combine(rhs.span),
                         source: lhs.source,
                         parent: lhs.parent,
-                        // included_by: None,
-                        // invoked_by: lhs.invoked_by,
                     });
                 }
             }
@@ -188,7 +198,7 @@ impl<'a> Context<'a> {
     }
 
     pub fn report_owned(&mut self, entry: LogEntry<NodeOwned>) {
-        self.log.push(entry);
+        self.logs.report(entry);
     }
 
     pub fn report(&mut self, entry: LogEntry<NodeRef<'a>>) {
@@ -201,7 +211,7 @@ impl<'a> Context<'a> {
                 msg: part.msg,
             })
             .collect();
-        self.log.push(LogEntry { parts });
+        self.logs.report(LogEntry { parts });
     }
 
     pub fn report_error_locless(&mut self, msg: impl ToString) {
@@ -277,20 +287,7 @@ impl<'a> Context<'a> {
         }
     }
 
-    pub fn set_top_level_src(&mut self, src: SourceRef<'a>) {
-        self.top_src = src;
-        self.top_src_eof = self.node(NodeInfoRef {
-            span: src.eof(),
-            source: src,
-            parent: Parent::None,
-        });
-    }
-
-    pub fn take_logs(self) -> Vec<LogEntry<NodeOwned>> {
-        self.log
-    }
-
-    pub fn has_errors(&self) -> bool {
-        !self.log.is_empty()
+    pub fn take_logs(&mut self) -> Logs<NodeOwned> {
+        self.logs.take()
     }
 }

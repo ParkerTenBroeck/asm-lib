@@ -1,7 +1,5 @@
 pub mod lang;
 
-use std::path::Path;
-
 use crate::assembler::lang::AssemblyLanguage;
 use crate::context::{Context, NodeRef};
 use crate::expression::ExpressionEvaluator;
@@ -76,36 +74,22 @@ pub struct Assembler<'a, 'b, T: AssemblyLanguage<'a>> {
 }
 
 impl<'a, 'b, T: AssemblyLanguage<'a>> Assembler<'a, 'b, T> {
-    pub fn new(
+    pub fn assemble(
         context: &'b mut Context<'a>,
         lang: &'b mut T,
         preprocessor: &'b mut PreProcessor<'a, T>,
-    ) -> Self {
+    ) -> T::AssembledResult {
         Self {
             context,
             lang,
             preprocessor,
         }
+        ._assemble()
     }
 
-    pub fn split_preprocessor(self) -> (&'b mut PreProcessor<'a, T>, PreProcessorCtx<'a, 'b, T>) {
-        (
-            self.preprocessor,
-            PreProcessorCtx::new(self.context, self.lang),
-        )
-    }
-
-    pub fn split_lang(self) -> (&'b mut T, LangCtx<'a, 'b, T>) {
-        (self.lang, LangCtx::new(self.context, self.preprocessor))
-    }
-
-    pub fn assemble(&mut self, path: &'a Path) -> T::AssembledResult {
-        if let Some(src) = self
-            .preprocessor
-            .begin(PreProcessorCtx::new(self.context, self.lang), path)
-        {
-            self.context.set_top_level_src(src);
-        }
+    fn _assemble(&mut self) -> T::AssembledResult {
+        self.preprocessor
+            .begin(PreProcessorCtx::new(self.context, self.lang));
 
         while let Some(Node(Token::NewLine, _)) = self.peek() {
             self.next();
@@ -119,6 +103,17 @@ impl<'a, 'b, T: AssemblyLanguage<'a>> Assembler<'a, 'b, T> {
 
         self.lang
             .finish(LangCtx::new(self.context, self.preprocessor))
+    }
+
+    pub fn split_preprocessor(self) -> (&'b mut PreProcessor<'a, T>, PreProcessorCtx<'a, 'b, T>) {
+        (
+            self.preprocessor,
+            PreProcessorCtx::new(self.context, self.lang),
+        )
+    }
+
+    pub fn split_lang(self) -> (&'b mut T, LangCtx<'a, 'b, T>) {
+        (self.lang, LangCtx::new(self.context, self.preprocessor))
     }
 
     fn assemble_line(&mut self) {

@@ -236,7 +236,7 @@ pub fn lex_file<'a>(
     path: &'a Path,
     parent: Parent<NodeRef<'a>>,
 ) -> Option<SrcSlice<'a>> {
-    let result = context.get_source_from_path(path);
+    let result = context.get_text(path);
     let src = match result {
         Ok(stc) => stc,
         Err(error) => {

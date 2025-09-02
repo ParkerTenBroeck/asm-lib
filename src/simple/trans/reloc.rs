@@ -33,9 +33,4 @@ impl<T: Reloc> Relocations<T> {
         self.relocs.push(reloc);
         RelocIdx(NonZeroUsize::new(self.relocs.len()).unwrap())
     }
-    
-    pub fn fmt<M: super::TranslationUnitMachine<Reloc = T>>(&self, f: &mut std::fmt::Formatter<'_>, trans: &super::TranslationUnit<M>) -> std::fmt::Result {
-        
-        Ok(())
-    }
 }

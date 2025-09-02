@@ -1,15 +1,16 @@
 use num_traits::PrimInt;
 use std::{
-    collections::{hash_map::Entry, HashMap}, num::NonZeroUsize
+    collections::{HashMap, hash_map::Entry},
+    num::NonZeroUsize,
 };
 
 pub mod data;
 pub mod dbg;
+pub mod display;
 pub mod reloc;
 pub mod section;
 pub mod str;
 pub mod sym;
-pub mod display;
 
 use reloc::*;
 use section::*;
@@ -86,7 +87,6 @@ impl<T: TranslationUnitMachine> TranslationUnit<T> {
         idx
     }
 
-    
     pub fn get_mut(&mut self, section_idx: SectionIdx) -> SectionMut<'_, T> {
         let section = &mut self.sections[section_idx.0.get() - 1];
         SectionMut {
@@ -100,7 +100,7 @@ impl<T: TranslationUnitMachine> TranslationUnit<T> {
     pub fn get(&self, section_idx: SectionIdx) -> &Section<T> {
         &self.sections[section_idx.0.get() - 1]
     }
-    
+
     pub fn resolve_mut(&mut self, name: &str) -> SectionMut<'_, T> {
         let section = self.resolve_or_make(name);
         self.get_mut(section)
@@ -202,7 +202,7 @@ impl<'a, T: TranslationUnitMachine> SectionMut<'a, T> {
         }
         symbol.section = Some(section_idx);
         symbol.offset = current_offset;
-        if symbol.ty == SymbolType::Unresolved{
+        if symbol.ty == SymbolType::Unresolved {
             symbol.ty = SymbolType::Notype;
         }
         Ok(())

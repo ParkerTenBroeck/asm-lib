@@ -7,11 +7,11 @@ pub trait Source {
     fn eof(&self) -> Span;
 }
 
-pub trait NodeTrait: Sized {
+pub trait NodeTrait: Sized + Clone {
     fn span(&self) -> Span;
     fn source(&self) -> &impl Source;
     fn parent(&self) -> &Parent<Self>;
-    fn top(mut self: &Self) -> &Self{
+    fn top(mut self: &Self) -> &Self {
         while let Some(next) = self.parent().parent() {
             self = next;
         }
@@ -19,17 +19,29 @@ pub trait NodeTrait: Sized {
     }
 }
 
-impl<'a> std::fmt::Display for NodeInfoRef<'a>{
+impl<'a> std::fmt::Display for NodeInfoRef<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let top = self.top();
-        write!(f, "{}:{}:{}", top.source().path().display(), top.span().col as usize+1, top.span().line as usize+1)
+        write!(
+            f,
+            "{}:{}:{}",
+            top.source().path().display(),
+            top.span().col as usize + 1,
+            top.span().line as usize + 1
+        )
     }
 }
 
-impl std::fmt::Display for NodeInfoOwned{
+impl std::fmt::Display for NodeInfoOwned {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let top = self.parent.parent().map(|p|&**p.top()).unwrap_or(self);
-        write!(f, "{}:{}:{}", top.source.path().display(), top.span.col as usize+1, top.span.line as usize+1)
+        let top = self.parent.parent().map(|p| &**p.top()).unwrap_or(self);
+        write!(
+            f,
+            "{}:{}:{}",
+            top.source.path().display(),
+            top.span.col as usize + 1,
+            top.span.line as usize + 1
+        )
     }
 }
 
@@ -165,7 +177,6 @@ pub struct NodeInfoRef<'a> {
     pub parent: Parent<NodeRef<'a>>,
 }
 impl<'a> NodeInfoRef<'a> {
-
     pub fn src_slice(&self) -> &'a str {
         &self.source.contents
             [self.span.offset as usize..self.span.offset as usize + self.span.len as usize]
@@ -206,4 +217,44 @@ impl NodeInfoOwned {
         &self.source.contents
             [self.span.offset as usize..self.span.offset as usize + self.span.len as usize]
     }
+}
+
+
+pub struct NodeManager{
+    // owned_source_map: HashMap<*const SourceInfoRef<'a>, SourceOwned>,
+    // owned_node_map: HashMap<*const NodeInfoRef<'a>, NodeOwned>,
+
+    
+}
+
+impl NodeManager{
+    // pub fn merge_nodes<'a>(&self, left: NodeRef<'a>, right: NodeRef<'a>) -> NodeRef<'a> {
+    //     // TODO optimizing this might be something to do
+    //     fn meow<'a>(thingies: &mut Vec<NodeRef<'a>>, start: NodeRef<'a>) {
+    //         let mut nya = Some(&start);
+    //         while let Some(thing) = nya {
+    //             thingies.push(thing);
+    //             nya = thing.parent.parent();
+    //         }
+    //     }
+    //     let mut lhs = Vec::new();
+    //     let mut rhs = Vec::new();
+    //     meow(&mut lhs, left);
+    //     meow(&mut rhs, right);
+
+    //     for (lhs, rhs) in lhs.iter().rev().zip(rhs.iter().rev()) {
+    //         if lhs != rhs {
+    //             if lhs.source != rhs.source {
+    //                 panic!("uhhhhhhh, {left:?}, {right:?}")
+    //             } else {
+    //                 return self.node(NodeInfoRef {
+    //                     span: lhs.span.combine(rhs.span),
+    //                     source: lhs.source,
+    //                     parent: lhs.parent,
+    //                 });
+    //             }
+    //         }
+    //     }
+    //     left
+    // }
 }
