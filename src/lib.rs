@@ -33,11 +33,11 @@ pub fn assemble<'a, L: AssemblyLanguage<'a>>(
     mut lang: L,
     mut preprocessor: PreProcessor<'a, L>,
     config: AssemblerConfig,
-    source: &'a impl AsRef<Path>,
+    source: &'a Path,
     supplier: Sources<'a>,
 ) -> AssemblerResult<L::AssembledResult> {
     let now = Instant::now();
-    let mut context = Context::new(source.as_ref(), bump, config, supplier);
+    let mut context = Context::new(source, bump, config, supplier);
 
     let output = Assembler::assemble(&mut context, &mut lang, &mut preprocessor);
 
