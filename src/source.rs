@@ -24,9 +24,9 @@ pub struct Sources<'a> {
 }
 
 impl<'a> Sources<'a> {
-    pub fn new(supplier: impl Into<SourceSupplier<'a>>) -> Self {
+    pub fn new(supplier: SourceSupplier<'a>) -> Self {
         Self {
-            supplier: supplier.into(),
+            supplier,
             source_map: HashMap::new(),
         }
     }

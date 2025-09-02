@@ -219,15 +219,12 @@ impl NodeInfoOwned {
     }
 }
 
-
-pub struct NodeManager{
+pub struct NodeManager {
     // owned_source_map: HashMap<*const SourceInfoRef<'a>, SourceOwned>,
     // owned_node_map: HashMap<*const NodeInfoRef<'a>, NodeOwned>,
-
-    
 }
 
-impl NodeManager{
+impl NodeManager {
     // pub fn merge_nodes<'a>(&self, left: NodeRef<'a>, right: NodeRef<'a>) -> NodeRef<'a> {
     //     // TODO optimizing this might be something to do
     //     fn meow<'a>(thingies: &mut Vec<NodeRef<'a>>, start: NodeRef<'a>) {

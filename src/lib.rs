@@ -29,15 +29,15 @@ use std::time::Instant;
 use crate::source::Sources;
 
 pub fn assemble<'a, L: AssemblyLanguage<'a>>(
+    bump: &'a Bump,
     mut lang: L,
     mut preprocessor: PreProcessor<'a, L>,
     config: AssemblerConfig,
-    source: &'a Path,
+    source: &'a impl AsRef<Path>,
     supplier: Sources<'a>,
-    bump: &'a Bump,
 ) -> AssemblerResult<L::AssembledResult> {
     let now = Instant::now();
-    let mut context = Context::new(source, bump, config, supplier);
+    let mut context = Context::new(source.as_ref(), bump, config, supplier);
 
     let output = Assembler::assemble(&mut context, &mut lang, &mut preprocessor);
 
