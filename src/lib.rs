@@ -24,7 +24,7 @@ pub use preprocess::PreProcessor;
 
 use bumpalo::Bump;
 use std::path::Path;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use crate::source::Sources;
 
@@ -41,18 +41,16 @@ pub fn assemble<'a, L: AssemblyLanguage<'a>>(
 
     let output = Assembler::assemble(&mut context, &mut lang, &mut preprocessor);
 
-    let elapsed = now.elapsed().as_secs_f64();
-
     AssemblerResult {
         allocated: bump.allocated_bytes(),
-        time: elapsed,
+        time: now.elapsed(),
         output,
         log: context.take_logs(),
     }
 }
 
 pub struct AssemblerResult<T> {
-    pub time: f64,
+    pub time: Duration,
     pub allocated: usize,
     pub output: T,
     pub log: Logs<NodeOwned>,
@@ -88,13 +86,15 @@ impl<T> std::fmt::Display for AssemblerResult<T> {
             writeln!(
                 f,
                 "{BOLD}{RED}error{RESET}{BOLD}: could not assemble due to {errors} error(s). took {}s allocated {}b{RESET}",
-                self.time, self.allocated
+                self.time.as_secs_f64(),
+                self.allocated
             )
         } else {
             writeln!(
                 f,
                 "{BOLD}{GREEN}Finished{RESET}{BOLD} in {}s allocated {}b{RESET}",
-                self.time, self.allocated
+                self.time.as_secs_f64(),
+                self.allocated
             )
         }
     }

@@ -43,6 +43,7 @@ pub struct AssemblerConfig {
     pub implicit_casts_ints: CastConfig,
     pub implicit_casts_ints_ptr: CastConfig,
     pub implicit_casts_ints_size: CastConfig,
+    pub implicit_casts_ints_func: CastConfig,
     pub implicit_casts_non_numeric: CastConfig,
 
     pub implicit_cast_label_offset: CastConfig,
@@ -69,6 +70,16 @@ impl AssemblerConfig {
                 changed: LogOn::Error,
             },
             implicit_casts_ints_ptr: CastConfig {
+                narrowing: LogOn::Error,
+                widening: LogOn::Error,
+                sign: LogOn::Error,
+                lossy: LogOn::Error,
+                f2i: LogOn::Error,
+                i2f: LogOn::Error,
+                changed_identity: LogOn::None,
+                changed: LogOn::Error,
+            },
+            implicit_casts_ints_func: CastConfig {
                 narrowing: LogOn::Error,
                 widening: LogOn::Error,
                 sign: LogOn::Error,

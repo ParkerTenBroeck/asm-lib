@@ -306,6 +306,14 @@ impl<'a, A: AssemblyLanguage<'a>> Constant<'a, A> {
             checked_cast_isize_with
         ),
         (
+            A::Ifunc,
+            Ifunc,
+            convert_into_ifunc,
+            checked_cast_ifunc,
+            implicit_casts_ints_func,
+            checked_cast_ifunc_with
+        ),
+        (
             A::Uptr,
             Uptr,
             convert_into_uptr,
@@ -320,6 +328,14 @@ impl<'a, A: AssemblyLanguage<'a>> Constant<'a, A> {
             checked_cast_usize,
             implicit_casts_ints_size,
             checked_cast_usize_with
+        ),
+        (
+            A::Ufunc,
+            Ufunc,
+            convert_into_ufunc,
+            checked_cast_ufunc,
+            implicit_casts_ints_func,
+            checked_cast_ufunc_with
         ),
         (
             u8,
@@ -453,6 +469,7 @@ where
     u128: ConvertableInto<T>,
     A::Uptr: ConvertableInto<T>,
     A::Usize: ConvertableInto<T>,
+    A::Ufunc: ConvertableInto<T>,
     i8: ConvertableInto<T>,
     i16: ConvertableInto<T>,
     i32: ConvertableInto<T>,
@@ -460,6 +477,7 @@ where
     i128: ConvertableInto<T>,
     A::Iptr: ConvertableInto<T>,
     A::Isize: ConvertableInto<T>,
+    A::Ifunc: ConvertableInto<T>,
     f32: ConvertableInto<T>,
     f64: ConvertableInto<T>,
     bool: ConvertableInto<T>,
@@ -475,6 +493,7 @@ where
             Constant::I128(v) => v.convert_into(),
             Constant::Isize(v) => v.convert_into(),
             Constant::Iptr(v) => v.convert_into(),
+            Constant::Ufunc(v) => v.convert_into(),
             Constant::U8(v) => v.convert_into(),
             Constant::U16(v) => v.convert_into(),
             Constant::U32(v) => v.convert_into(),
@@ -482,6 +501,7 @@ where
             Constant::U128(v) => v.convert_into(),
             Constant::Usize(v) => v.convert_into(),
             Constant::Uptr(v) => v.convert_into(),
+            Constant::Ifunc(v) => v.convert_into(),
             Constant::F32(v) => v.convert_into(),
             Constant::F64(v) => v.convert_into(),
             Constant::Str(v) => v.convert_into(),
@@ -709,8 +729,10 @@ pub trait AsmNum<'a, A: AssemblyLanguage<'a>>:
     + AsPrimitive<Self>
     + AsPrimitive<A::Uptr>
     + AsPrimitive<A::Usize>
+    + AsPrimitive<A::Ufunc>
     + AsPrimitive<A::Iptr>
     + AsPrimitive<A::Isize>
+    + AsPrimitive<A::Ifunc>
     + FromAsPrimitive<u8>
     + FromAsPrimitive<u16>
     + FromAsPrimitive<u32>
@@ -728,8 +750,10 @@ pub trait AsmNum<'a, A: AssemblyLanguage<'a>>:
     + FromAsPrimitive<Self>
     + FromAsPrimitive<A::Uptr>
     + FromAsPrimitive<A::Usize>
+    + FromAsPrimitive<A::Ufunc>
     + FromAsPrimitive<A::Iptr>
     + FromAsPrimitive<A::Isize>
+    + FromAsPrimitive<A::Ifunc>
     + ConvertableFrom<u8>
     + ConvertableFrom<u16>
     + ConvertableFrom<u32>
@@ -748,8 +772,10 @@ pub trait AsmNum<'a, A: AssemblyLanguage<'a>>:
     + ConvertableFrom<Self>
     + ConvertableFrom<A::Uptr>
     + ConvertableFrom<A::Usize>
+    + ConvertableFrom<A::Ufunc>
     + ConvertableFrom<A::Iptr>
     + ConvertableFrom<A::Isize>
+    + ConvertableFrom<A::Ifunc>
     + ConvertableInto<u8>
     + ConvertableInto<u16>
     + ConvertableInto<u32>
@@ -768,8 +794,10 @@ pub trait AsmNum<'a, A: AssemblyLanguage<'a>>:
     + ConvertableInto<Self>
     + ConvertableInto<A::Uptr>
     + ConvertableInto<A::Usize>
+    + ConvertableInto<A::Ufunc>
     + ConvertableInto<A::Iptr>
     + ConvertableInto<A::Isize>
+    + ConvertableInto<A::Ifunc>
 {
     const BITS: usize;
     const SIGNED: bool;
@@ -779,10 +807,12 @@ macro_rules! prims {
     ($($ident:ident),* $(,)?) => {$(
         impl<'a, A: AssemblyLanguage<'a>> AsmNum<'a, A> for $ident
         where
-        $ident: ConvertableFrom<A::Iptr> + ConvertableFrom<A::Isize> + ConvertableFrom<A::Uptr> + ConvertableFrom<A::Usize>
-        + ConvertableInto<A::Iptr> + ConvertableInto<A::Isize> + ConvertableInto<A::Uptr> + ConvertableInto<A::Usize>,
-                $ident: FromAsPrimitive<A::Iptr> + FromAsPrimitive<A::Isize> + FromAsPrimitive<A::Uptr> + FromAsPrimitive<A::Usize>
-        + AsPrimitive<A::Iptr> + AsPrimitive<A::Isize> + AsPrimitive<A::Uptr> + AsPrimitive<A::Usize>
+        $ident:
+            ConvertableFrom<A::Iptr> + ConvertableFrom<A::Isize> + ConvertableFrom<A::Ifunc> + ConvertableFrom<A::Uptr> + ConvertableFrom<A::Usize> + ConvertableFrom<A::Ufunc>
+            + ConvertableInto<A::Iptr> + ConvertableInto<A::Isize> + ConvertableInto<A::Ifunc> + ConvertableInto<A::Uptr> + ConvertableInto<A::Usize> + ConvertableInto<A::Ufunc>,
+        $ident:
+            FromAsPrimitive<A::Iptr> + FromAsPrimitive<A::Isize> + FromAsPrimitive<A::Ifunc> + FromAsPrimitive<A::Uptr> + FromAsPrimitive<A::Usize> + FromAsPrimitive<A::Ufunc>
+            + AsPrimitive<A::Iptr> + AsPrimitive<A::Isize> + AsPrimitive<A::Ifunc> + AsPrimitive<A::Uptr> + AsPrimitive<A::Usize> + AsPrimitive<A::Ufunc>
         {
                 const BITS: usize = std::mem::size_of::<$ident>()*8;
                 const SIGNED: bool = stringify!($ident).as_bytes()[0] == b'i';

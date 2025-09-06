@@ -75,6 +75,7 @@ pub enum ValueType<'a, L: AssemblyLanguage<'a>> {
     I128,
     Isize,
     Iptr,
+    Ifunc,
 
     U8,
     U16,
@@ -83,6 +84,7 @@ pub enum ValueType<'a, L: AssemblyLanguage<'a>> {
     U128,
     Usize,
     Uptr,
+    Ufunc,
 
     F32,
     F64,
@@ -96,55 +98,59 @@ pub enum ValueType<'a, L: AssemblyLanguage<'a>> {
 }
 
 impl<'a, L: AssemblyLanguage<'a>> ValueType<'a, L> {
-    pub fn get_align(&self) -> Option<L::Uptr> {
+    pub fn get_align<T: FromPrimitive>(&self) -> Option<T> {
         match self {
-            Self::I8 => <L::Uptr as FromPrimitive>::from_usize(1),
-            Self::I16 => <L::Uptr as FromPrimitive>::from_usize(2),
-            Self::I32 => <L::Uptr as FromPrimitive>::from_usize(4),
-            Self::I64 => <L::Uptr as FromPrimitive>::from_usize(8),
-            Self::I128 => <L::Uptr as FromPrimitive>::from_usize(16),
-            Self::Isize => <L::Uptr as FromPrimitive>::from_usize(std::mem::align_of::<L::Isize>()),
-            Self::Iptr => <L::Uptr as FromPrimitive>::from_usize(std::mem::align_of::<L::Iptr>()),
-            Self::U8 => <L::Uptr as FromPrimitive>::from_usize(1),
-            Self::U16 => <L::Uptr as FromPrimitive>::from_usize(2),
-            Self::U32 => <L::Uptr as FromPrimitive>::from_usize(4),
-            Self::U64 => <L::Uptr as FromPrimitive>::from_usize(8),
-            Self::U128 => <L::Uptr as FromPrimitive>::from_usize(16),
-            Self::Usize => <L::Uptr as FromPrimitive>::from_usize(std::mem::align_of::<L::Usize>()),
-            Self::Uptr => <L::Uptr as FromPrimitive>::from_usize(std::mem::align_of::<L::Uptr>()),
-            Self::F32 => <L::Uptr as FromPrimitive>::from_usize(4),
-            Self::F64 => <L::Uptr as FromPrimitive>::from_usize(8),
-            Self::Str => <L::Uptr as FromPrimitive>::from_usize(1),
-            Self::Cstr => <L::Uptr as FromPrimitive>::from_usize(1),
-            Self::Bstr => <L::Uptr as FromPrimitive>::from_usize(1),
-            Self::Char => <L::Uptr as FromPrimitive>::from_usize(4),
-            Self::Bool => <L::Uptr as FromPrimitive>::from_usize(1),
-            _ => Some(num_traits::one()),
+            Self::I8 => T::from_usize(1),
+            Self::I16 => T::from_usize(2),
+            Self::I32 => T::from_usize(4),
+            Self::I64 => T::from_usize(8),
+            Self::I128 => T::from_usize(16),
+            Self::Isize => T::from_usize(std::mem::align_of::<L::Isize>()),
+            Self::Iptr => T::from_usize(std::mem::align_of::<L::Iptr>()),
+            Self::Ifunc => T::from_usize(std::mem::align_of::<L::Ifunc>()),
+            Self::U8 => T::from_usize(1),
+            Self::U16 => T::from_usize(2),
+            Self::U32 => T::from_usize(4),
+            Self::U64 => T::from_usize(8),
+            Self::U128 => T::from_usize(16),
+            Self::Usize => T::from_usize(std::mem::align_of::<L::Usize>()),
+            Self::Uptr => T::from_usize(std::mem::align_of::<L::Uptr>()),
+            Self::Ufunc => T::from_usize(std::mem::align_of::<L::Ufunc>()),
+            Self::F32 => T::from_usize(4),
+            Self::F64 => T::from_usize(8),
+            Self::Str => T::from_usize(1),
+            Self::Cstr => T::from_usize(1),
+            Self::Bstr => T::from_usize(1),
+            Self::Char => T::from_usize(4),
+            Self::Bool => T::from_usize(1),
+            _ => T::from_u8(0),
         }
     }
 
-    pub fn get_size(&self) -> Option<L::Uptr> {
+    pub fn get_size<T: FromPrimitive>(&self) -> Option<T> {
         match self {
-            Self::I8 => <L::Uptr as FromPrimitive>::from_usize(1),
-            Self::I16 => <L::Uptr as FromPrimitive>::from_usize(2),
-            Self::I32 => <L::Uptr as FromPrimitive>::from_usize(4),
-            Self::I64 => <L::Uptr as FromPrimitive>::from_usize(8),
-            Self::I128 => <L::Uptr as FromPrimitive>::from_usize(16),
-            Self::Isize => <L::Uptr as FromPrimitive>::from_usize(std::mem::size_of::<L::Isize>()),
-            Self::Iptr => <L::Uptr as FromPrimitive>::from_usize(std::mem::size_of::<L::Iptr>()),
-            Self::U8 => <L::Uptr as FromPrimitive>::from_usize(1),
-            Self::U16 => <L::Uptr as FromPrimitive>::from_usize(2),
-            Self::U32 => <L::Uptr as FromPrimitive>::from_usize(4),
-            Self::U64 => <L::Uptr as FromPrimitive>::from_usize(8),
-            Self::U128 => <L::Uptr as FromPrimitive>::from_usize(16),
-            Self::Usize => <L::Uptr as FromPrimitive>::from_usize(std::mem::size_of::<L::Usize>()),
-            Self::Uptr => <L::Uptr as FromPrimitive>::from_usize(std::mem::size_of::<L::Uptr>()),
-            Self::F32 => <L::Uptr as FromPrimitive>::from_usize(4),
-            Self::F64 => <L::Uptr as FromPrimitive>::from_usize(8),
-            Self::Char => <L::Uptr as FromPrimitive>::from_usize(4),
-            Self::Bool => <L::Uptr as FromPrimitive>::from_usize(1),
+            Self::I8 => T::from_usize(1),
+            Self::I16 => T::from_usize(2),
+            Self::I32 => T::from_usize(4),
+            Self::I64 => T::from_usize(8),
+            Self::I128 => T::from_usize(16),
+            Self::Isize => T::from_usize(std::mem::size_of::<L::Isize>()),
+            Self::Iptr => T::from_usize(std::mem::size_of::<L::Iptr>()),
+            Self::Ifunc => T::from_usize(std::mem::size_of::<L::Ifunc>()),
+            Self::U8 => T::from_usize(1),
+            Self::U16 => T::from_usize(2),
+            Self::U32 => T::from_usize(4),
+            Self::U64 => T::from_usize(8),
+            Self::U128 => T::from_usize(16),
+            Self::Usize => T::from_usize(std::mem::size_of::<L::Usize>()),
+            Self::Uptr => T::from_usize(std::mem::size_of::<L::Uptr>()),
+            Self::Ufunc => T::from_usize(std::mem::size_of::<L::Ufunc>()),
+            Self::F32 => T::from_usize(4),
+            Self::F64 => T::from_usize(8),
+            Self::Char => T::from_usize(4),
+            Self::Bool => T::from_usize(1),
 
-            _ => Some(num_traits::zero()),
+            _ => T::from_u8(0),
         }
     }
 }
@@ -169,6 +175,7 @@ where
             ValueType::I128 => f.write_str("i128"),
             ValueType::Isize => f.write_str("isize"),
             ValueType::Iptr => f.write_str("iptr"),
+            ValueType::Ifunc => f.write_str("ifunc"),
             ValueType::U8 => f.write_str("u8"),
             ValueType::U16 => f.write_str("u16"),
             ValueType::U32 => f.write_str("u32"),
@@ -176,6 +183,7 @@ where
             ValueType::U128 => f.write_str("u128"),
             ValueType::Usize => f.write_str("usize"),
             ValueType::Uptr => f.write_str("uptr"),
+            ValueType::Ufunc => f.write_str("ufunc"),
             ValueType::F32 => f.write_str("f32"),
             ValueType::F64 => f.write_str("f64"),
             ValueType::Bool => f.write_str("bool"),
@@ -203,6 +211,7 @@ impl<'a, L: AssemblyLanguage<'a>> core::cmp::PartialEq for ValueType<'a, L> {
             (ValueType::I128, ValueType::I128) => true,
             (ValueType::Isize, ValueType::Isize) => true,
             (ValueType::Iptr, ValueType::Iptr) => true,
+            (ValueType::Ifunc, ValueType::Ifunc) => true,
             (ValueType::U8, ValueType::U8) => true,
             (ValueType::U16, ValueType::U16) => true,
             (ValueType::U32, ValueType::U32) => true,
@@ -210,6 +219,7 @@ impl<'a, L: AssemblyLanguage<'a>> core::cmp::PartialEq for ValueType<'a, L> {
             (ValueType::U128, ValueType::U128) => true,
             (ValueType::Usize, ValueType::Usize) => true,
             (ValueType::Uptr, ValueType::Uptr) => true,
+            (ValueType::Ufunc, ValueType::Ufunc) => true,
             (ValueType::F32, ValueType::F32) => true,
             (ValueType::F64, ValueType::F64) => true,
             (ValueType::Bool, ValueType::Bool) => true,
@@ -245,13 +255,15 @@ impl<'a, L: AssemblyLanguage<'a>> std::fmt::Display for ValueType<'a, L> {
             ValueType::I128 => write!(f, "i128"),
             ValueType::Isize => write!(f, "isize"),
             ValueType::Iptr => write!(f, "iptr"),
+            ValueType::Ifunc => write!(f, "ifunc"),
             ValueType::U8 => write!(f, "u8"),
             ValueType::U16 => write!(f, "u16"),
             ValueType::U32 => write!(f, "u32"),
             ValueType::U64 => write!(f, "u64"),
+            ValueType::U128 => write!(f, "u128"),
             ValueType::Usize => write!(f, "usize"),
             ValueType::Uptr => write!(f, "uptr"),
-            ValueType::U128 => write!(f, "u128"),
+            ValueType::Ufunc => write!(f, "ufunc"),
             ValueType::F32 => write!(f, "f32"),
             ValueType::F64 => write!(f, "f64"),
             ValueType::Bool => write!(f, "bool"),
@@ -280,6 +292,7 @@ impl<'a, L: AssemblyLanguage<'a>> ValueType<'a, L> {
             ValueType::I128 => Value::Constant(Constant::I128(0)),
             ValueType::Iptr => Value::Constant(Constant::Iptr(Default::default())),
             ValueType::Isize => Value::Constant(Constant::Isize(Default::default())),
+            ValueType::Ifunc => Value::Constant(Constant::Ifunc(Default::default())),
             ValueType::U8 => Value::Constant(Constant::U8(0)),
             ValueType::U16 => Value::Constant(Constant::U16(0)),
             ValueType::U32 => Value::Constant(Constant::U32(0)),
@@ -287,6 +300,7 @@ impl<'a, L: AssemblyLanguage<'a>> ValueType<'a, L> {
             ValueType::U128 => Value::Constant(Constant::U128(0)),
             ValueType::Uptr => Value::Constant(Constant::Uptr(Default::default())),
             ValueType::Usize => Value::Constant(Constant::Usize(Default::default())),
+            ValueType::Ufunc => Value::Constant(Constant::Ufunc(Default::default())),
             ValueType::F32 => Value::Constant(Constant::F32(0.0)),
             ValueType::F64 => Value::Constant(Constant::F64(0.0)),
             ValueType::Bool => Value::Constant(Constant::Bool(false)),
@@ -464,6 +478,7 @@ pub enum Constant<'a, L: AssemblyLanguage<'a>> {
 
     Isize(L::Isize),
     Iptr(L::Iptr),
+    Ifunc(L::Ifunc),
 
     U8(u8),
     U16(u16),
@@ -473,6 +488,7 @@ pub enum Constant<'a, L: AssemblyLanguage<'a>> {
 
     Usize(L::Usize),
     Uptr(L::Uptr),
+    Ufunc(L::Ufunc),
 
     F32(f32),
     F64(f64),
@@ -497,6 +513,7 @@ impl<'a, L: AssemblyLanguage<'a>> PartialEq for Constant<'a, L> {
             (Constant::I128(lhs), Constant::I128(rhs)) => lhs == rhs,
             (Constant::Isize(lhs), Constant::Isize(rhs)) => lhs == rhs,
             (Constant::Iptr(lhs), Constant::Iptr(rhs)) => lhs == rhs,
+            (Constant::Ifunc(lhs), Constant::Ifunc(rhs)) => lhs == rhs,
             (Constant::U8(lhs), Constant::U8(rhs)) => lhs == rhs,
             (Constant::U16(lhs), Constant::U16(rhs)) => lhs == rhs,
             (Constant::U32(lhs), Constant::U32(rhs)) => lhs == rhs,
@@ -504,6 +521,7 @@ impl<'a, L: AssemblyLanguage<'a>> PartialEq for Constant<'a, L> {
             (Constant::U128(lhs), Constant::U128(rhs)) => lhs == rhs,
             (Constant::Usize(lhs), Constant::Usize(rhs)) => lhs == rhs,
             (Constant::Uptr(lhs), Constant::Uptr(rhs)) => lhs == rhs,
+            (Constant::Ufunc(lhs), Constant::Ufunc(rhs)) => lhs == rhs,
             (Constant::F32(lhs), Constant::F32(rhs)) => lhs == rhs,
             (Constant::F64(lhs), Constant::F64(rhs)) => lhs == rhs,
             (Constant::Str(lhs), Constant::Str(rhs)) => lhs == rhs,
@@ -524,6 +542,7 @@ impl<'a, L: AssemblyLanguage<'a>> std::fmt::Debug for Constant<'a, L> {
             Constant::I128(c) => c.fmt(f),
             Constant::Isize(c) => c.fmt(f),
             Constant::Iptr(c) => c.fmt(f),
+            Constant::Ifunc(c) => c.fmt(f),
             Constant::U8(c) => c.fmt(f),
             Constant::U16(c) => c.fmt(f),
             Constant::U32(c) => c.fmt(f),
@@ -531,6 +550,7 @@ impl<'a, L: AssemblyLanguage<'a>> std::fmt::Debug for Constant<'a, L> {
             Constant::U128(c) => c.fmt(f),
             Constant::Usize(c) => c.fmt(f),
             Constant::Uptr(c) => c.fmt(f),
+            Constant::Ufunc(c) => c.fmt(f),
             Constant::F32(c) => c.fmt(f),
             Constant::F64(c) => c.fmt(f),
             Constant::Str(c) => c.fmt(f),
@@ -554,6 +574,7 @@ impl<'a, L: AssemblyLanguage<'a>> Constant<'a, L> {
             Constant::I128(_) => ValueType::I128,
             Constant::Isize(_) => ValueType::Isize,
             Constant::Iptr(_) => ValueType::Iptr,
+            Constant::Ifunc(_) => ValueType::Ifunc,
             Constant::U8(_) => ValueType::U8,
             Constant::U16(_) => ValueType::U16,
             Constant::U32(_) => ValueType::U32,
@@ -561,6 +582,7 @@ impl<'a, L: AssemblyLanguage<'a>> Constant<'a, L> {
             Constant::U128(_) => ValueType::U128,
             Constant::Usize(_) => ValueType::Usize,
             Constant::Uptr(_) => ValueType::Uptr,
+            Constant::Ufunc(_) => ValueType::Ufunc,
             Constant::F32(_) => ValueType::F32,
             Constant::F64(_) => ValueType::F64,
             Constant::Str(AsmStr::Str(_)) => ValueType::Str,
@@ -586,8 +608,10 @@ impl<'a, L: AssemblyLanguage<'a>> Constant<'a, L> {
                 | Self::U16(_)
                 | Self::U32(_)
                 | Self::U64(_)
+                | Self::U128(_)
                 | Self::Uptr(_)
                 | Self::Usize(_)
+                | Self::Ufunc(_)
         )
     }
 
@@ -598,72 +622,62 @@ impl<'a, L: AssemblyLanguage<'a>> Constant<'a, L> {
                 | Self::I16(_)
                 | Self::I32(_)
                 | Self::I64(_)
+                | Self::I128(_)
                 | Self::Iptr(_)
                 | Self::Isize(_)
+                | Self::Ifunc(_)
         )
     }
 
-    pub fn get_align(&self) -> Option<L::Uptr> {
+    pub fn get_align<T: FromPrimitive>(&self) -> Option<T> {
         match self {
-            Constant::I8(_) => <L::Uptr as FromPrimitive>::from_usize(1),
-            Constant::I16(_) => <L::Uptr as FromPrimitive>::from_usize(2),
-            Constant::I32(_) => <L::Uptr as FromPrimitive>::from_usize(4),
-            Constant::I64(_) => <L::Uptr as FromPrimitive>::from_usize(8),
-            Constant::I128(_) => <L::Uptr as FromPrimitive>::from_usize(16),
-            Constant::Isize(_) => {
-                <L::Uptr as FromPrimitive>::from_usize(std::mem::align_of::<L::Isize>())
-            }
-            Constant::Iptr(_) => {
-                <L::Uptr as FromPrimitive>::from_usize(std::mem::align_of::<L::Iptr>())
-            }
-            Constant::U8(_) => <L::Uptr as FromPrimitive>::from_usize(1),
-            Constant::U16(_) => <L::Uptr as FromPrimitive>::from_usize(2),
-            Constant::U32(_) => <L::Uptr as FromPrimitive>::from_usize(4),
-            Constant::U64(_) => <L::Uptr as FromPrimitive>::from_usize(8),
-            Constant::U128(_) => <L::Uptr as FromPrimitive>::from_usize(16),
-            Constant::Usize(_) => {
-                <L::Uptr as FromPrimitive>::from_usize(std::mem::align_of::<L::Usize>())
-            }
-            Constant::Uptr(_) => {
-                <L::Uptr as FromPrimitive>::from_usize(std::mem::align_of::<L::Uptr>())
-            }
-            Constant::F32(_) => <L::Uptr as FromPrimitive>::from_usize(4),
-            Constant::F64(_) => <L::Uptr as FromPrimitive>::from_usize(8),
-            Constant::Str(_) => <L::Uptr as FromPrimitive>::from_usize(1),
-            Constant::Char(_) => <L::Uptr as FromPrimitive>::from_usize(4),
-            Constant::Bool(_) => <L::Uptr as FromPrimitive>::from_usize(1),
+            Constant::I8(_) => T::from_usize(1),
+            Constant::I16(_) => T::from_usize(2),
+            Constant::I32(_) => T::from_usize(4),
+            Constant::I64(_) => T::from_usize(8),
+            Constant::I128(_) => T::from_usize(16),
+            Constant::Isize(_) => T::from_usize(std::mem::align_of::<L::Isize>()),
+            Constant::Iptr(_) => T::from_usize(std::mem::align_of::<L::Iptr>()),
+            Constant::Ifunc(_) => T::from_usize(std::mem::align_of::<L::Ifunc>()),
+            Constant::U8(_) => T::from_usize(1),
+            Constant::U16(_) => T::from_usize(2),
+            Constant::U32(_) => T::from_usize(4),
+            Constant::U64(_) => T::from_usize(8),
+            Constant::U128(_) => T::from_usize(16),
+            Constant::Usize(_) => T::from_usize(std::mem::align_of::<L::Usize>()),
+            Constant::Uptr(_) => T::from_usize(std::mem::align_of::<L::Uptr>()),
+            Constant::Ufunc(_) => T::from_usize(std::mem::align_of::<L::Ufunc>()),
+            Constant::F32(_) => T::from_usize(4),
+            Constant::F64(_) => T::from_usize(8),
+            Constant::Str(_) => T::from_usize(1),
+            Constant::Char(_) => T::from_usize(4),
+            Constant::Bool(_) => T::from_usize(1),
         }
     }
 
-    pub fn get_size(&self) -> Option<L::Uptr> {
+    pub fn get_size<T: FromPrimitive>(&self) -> Option<T> {
         match self {
-            Constant::I8(_) => <L::Uptr as FromPrimitive>::from_usize(1),
-            Constant::I16(_) => <L::Uptr as FromPrimitive>::from_usize(2),
-            Constant::I32(_) => <L::Uptr as FromPrimitive>::from_usize(4),
-            Constant::I64(_) => <L::Uptr as FromPrimitive>::from_usize(8),
-            Constant::I128(_) => <L::Uptr as FromPrimitive>::from_usize(16),
-            Constant::Isize(_) => {
-                <L::Uptr as FromPrimitive>::from_usize(std::mem::size_of::<L::Isize>())
-            }
-            Constant::Iptr(_) => {
-                <L::Uptr as FromPrimitive>::from_usize(std::mem::size_of::<L::Iptr>())
-            }
-            Constant::U8(_) => <L::Uptr as FromPrimitive>::from_usize(1),
-            Constant::U16(_) => <L::Uptr as FromPrimitive>::from_usize(2),
-            Constant::U32(_) => <L::Uptr as FromPrimitive>::from_usize(4),
-            Constant::U64(_) => <L::Uptr as FromPrimitive>::from_usize(8),
-            Constant::U128(_) => <L::Uptr as FromPrimitive>::from_usize(16),
-            Constant::Usize(_) => {
-                <L::Uptr as FromPrimitive>::from_usize(std::mem::size_of::<L::Usize>())
-            }
-            Constant::Uptr(_) => {
-                <L::Uptr as FromPrimitive>::from_usize(std::mem::size_of::<L::Uptr>())
-            }
-            Constant::F32(_) => <L::Uptr as FromPrimitive>::from_usize(4),
-            Constant::F64(_) => <L::Uptr as FromPrimitive>::from_usize(8),
-            Constant::Str(str) => <L::Uptr as FromPrimitive>::from_usize(str.len()),
-            Constant::Char(_) => <L::Uptr as FromPrimitive>::from_usize(4),
-            Constant::Bool(_) => <L::Uptr as FromPrimitive>::from_usize(1),
+            Constant::I8(_) => T::from_usize(1),
+            Constant::I16(_) => T::from_usize(2),
+            Constant::I32(_) => T::from_usize(4),
+            Constant::I64(_) => T::from_usize(8),
+            Constant::I128(_) => T::from_usize(16),
+            Constant::Isize(_) => T::from_usize(std::mem::size_of::<L::Isize>()),
+            Constant::Iptr(_) => T::from_usize(std::mem::size_of::<L::Iptr>()),
+            Constant::Ifunc(_) => T::from_usize(std::mem::size_of::<L::Ifunc>()),
+            Constant::U8(_) => T::from_usize(1),
+            Constant::U16(_) => T::from_usize(2),
+            Constant::U32(_) => T::from_usize(4),
+            Constant::U64(_) => T::from_usize(8),
+            Constant::U128(_) => T::from_usize(16),
+            Constant::Usize(_) => T::from_usize(std::mem::size_of::<L::Usize>()),
+            Constant::Uptr(_) => T::from_usize(std::mem::size_of::<L::Uptr>()),
+            Constant::Ufunc(_) => T::from_usize(std::mem::size_of::<L::Ufunc>()),
+            Constant::F32(_) => T::from_usize(4),
+            Constant::F64(_) => T::from_usize(8),
+            Constant::Str(str) => T::from_usize(str.len()),
+            Constant::Char(_) => T::from_usize(4),
+            Constant::Bool(_) => T::from_usize(1),
         }
     }
 }
@@ -678,6 +692,7 @@ impl<'a, L: AssemblyLanguage<'a>> std::fmt::Display for Constant<'a, L> {
             Constant::I128(c) => c.fmt(f),
             Constant::Isize(c) => c.fmt(f),
             Constant::Iptr(c) => c.fmt(f),
+            Constant::Ifunc(c) => c.fmt(f),
             Constant::U8(c) => c.fmt(f),
             Constant::U16(c) => c.fmt(f),
             Constant::U32(c) => c.fmt(f),
@@ -685,6 +700,7 @@ impl<'a, L: AssemblyLanguage<'a>> std::fmt::Display for Constant<'a, L> {
             Constant::U128(c) => c.fmt(f),
             Constant::Usize(c) => c.fmt(f),
             Constant::Uptr(c) => c.fmt(f),
+            Constant::Ufunc(c) => c.fmt(f),
             Constant::F32(c) => c.fmt(f),
             Constant::F64(c) => c.fmt(f),
             Constant::Str(c) => c.fmt(f),
@@ -716,6 +732,7 @@ impl<'a, L: AssemblyLanguage<'a>> ValueType<'a, L> {
             ValueType::I128 => true,
             ValueType::Isize => true,
             ValueType::Iptr => true,
+            ValueType::Ifunc => true,
             ValueType::U8 => true,
             ValueType::U16 => true,
             ValueType::U32 => true,
@@ -723,6 +740,7 @@ impl<'a, L: AssemblyLanguage<'a>> ValueType<'a, L> {
             ValueType::U128 => true,
             ValueType::Usize => true,
             ValueType::Uptr => true,
+            ValueType::Ufunc => true,
             ValueType::F32 => false,
             ValueType::F64 => false,
             ValueType::Bool => false,
@@ -747,6 +765,7 @@ impl<'a, L: AssemblyLanguage<'a>> ValueType<'a, L> {
             ValueType::I128 => Some("i128"),
             ValueType::Isize => Some("isize"),
             ValueType::Iptr => Some("iptr"),
+            ValueType::Ifunc => Some("ifunc"),
             ValueType::U8 => Some("u8"),
             ValueType::U16 => Some("u16"),
             ValueType::U32 => Some("u32"),
@@ -754,6 +773,7 @@ impl<'a, L: AssemblyLanguage<'a>> ValueType<'a, L> {
             ValueType::U128 => Some("u128"),
             ValueType::Usize => Some("usize"),
             ValueType::Uptr => Some("uptr"),
+            ValueType::Ufunc => Some("ufunc"),
             ValueType::F32 => Some("f32"),
             ValueType::F64 => Some("f64"),
             ValueType::Bool => None,

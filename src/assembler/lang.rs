@@ -20,6 +20,8 @@ pub trait AssemblyLanguage<'a>: Sized {
     type Isize: AsmNum<'a, Self>;
     type Uptr: AsmNum<'a, Self>;
     type Iptr: AsmNum<'a, Self>;
+    type Ifunc: AsmNum<'a, Self>;
+    type Ufunc: AsmNum<'a, Self>;
     const DEFAULT_INTEGER_POSTFIX: &'a str = "i32";
     const DEFAULT_FLOAT_POSTFIX: &'a str = "f32";
 

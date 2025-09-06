@@ -78,6 +78,7 @@ impl<'a, 'b, L: AssemblyLanguage<'a>> ExpressionEvaluator<'a, 'b, L> {
                         (Constant::I128($l), Constant::I128($r)) => Constant::I128($integer),
                         (Constant::Isize($l), Constant::Isize($r)) => Constant::Isize($integer),
                         (Constant::Iptr($l), Constant::Iptr($r)) => Constant::Iptr($integer),
+                        (Constant::Ifunc($l), Constant::Ifunc($r)) => Constant::Ifunc($integer),
                         (Constant::U8($l), Constant::U8($r)) => Constant::U8($integer),
                         (Constant::U16($l), Constant::U16($r)) => Constant::U16($integer),
                         (Constant::U32($l), Constant::U32($r)) => Constant::U32($integer),
@@ -85,6 +86,7 @@ impl<'a, 'b, L: AssemblyLanguage<'a>> ExpressionEvaluator<'a, 'b, L> {
                         (Constant::U128($l), Constant::U128($r)) => Constant::U128($integer),
                         (Constant::Usize($l), Constant::Usize($r)) => Constant::Usize($integer),
                         (Constant::Uptr($l), Constant::Uptr($r)) => Constant::Uptr($integer),
+                        (Constant::Ufunc($l), Constant::Ufunc($r)) => Constant::Ufunc($integer),
                     )?
                     $(
                         (Constant::F32($l), Constant::F32($r)) => Constant::F32($float),
@@ -110,6 +112,7 @@ impl<'a, 'b, L: AssemblyLanguage<'a>> ExpressionEvaluator<'a, 'b, L> {
                         (Constant::I128($l), Constant::I128($r)) => Constant::Bool($block),
                         (Constant::Isize($l), Constant::Isize($r)) => Constant::Bool($block),
                         (Constant::Iptr($l), Constant::Iptr($r)) => Constant::Bool($block),
+                        (Constant::Ifunc($l), Constant::Ifunc($r)) => Constant::Bool($block),
                         (Constant::U8($l), Constant::U8($r)) => Constant::Bool($block),
                         (Constant::U16($l), Constant::U16($r)) => Constant::Bool($block),
                         (Constant::U32($l), Constant::U32($r)) => Constant::Bool($block),
@@ -117,6 +120,7 @@ impl<'a, 'b, L: AssemblyLanguage<'a>> ExpressionEvaluator<'a, 'b, L> {
                         (Constant::U128($l), Constant::U128($r)) => Constant::Bool($block),
                         (Constant::Usize($l), Constant::Usize($r)) => Constant::Bool($block),
                         (Constant::Uptr($l), Constant::Uptr($r)) => Constant::Bool($block),
+                        (Constant::Ufunc($l), Constant::Ufunc($r)) => Constant::Bool($block),
                         (Constant::F32($l), Constant::F32($r)) => Constant::Bool($block),
                         (Constant::F64($l), Constant::F64($r)) => Constant::Bool($block),
                         (Constant::Char($l), Constant::Char($r)) => Constant::Bool($block),

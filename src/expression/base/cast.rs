@@ -29,6 +29,7 @@ impl<'a, 'b, L: AssemblyLanguage<'a>> ExpressionEvaluator<'a, 'b, L> {
                     V_C(C::I128(i)) => V_C(C::$ident(FromAsPrimitive::from_as(i))),
                     V_C(C::Isize(i)) => V_C(C::$ident(FromAsPrimitive::from_as(i))),
                     V_C(C::Iptr(i)) => V_C(C::$ident(FromAsPrimitive::from_as(i))),
+                    V_C(C::Ifunc(i)) => V_C(C::$ident(FromAsPrimitive::from_as(i))),
                     V_C(C::U8(i)) => V_C(C::$ident(FromAsPrimitive::from_as(i))),
                     V_C(C::U16(i)) => V_C(C::$ident(FromAsPrimitive::from_as(i))),
                     V_C(C::U32(i)) => V_C(C::$ident(FromAsPrimitive::from_as(i))),
@@ -36,6 +37,7 @@ impl<'a, 'b, L: AssemblyLanguage<'a>> ExpressionEvaluator<'a, 'b, L> {
                     V_C(C::U128(i)) => V_C(C::$ident(FromAsPrimitive::from_as(i))),
                     V_C(C::Usize(i)) => V_C(C::$ident(FromAsPrimitive::from_as(i))),
                     V_C(C::Uptr(i)) => V_C(C::$ident(FromAsPrimitive::from_as(i))),
+                    V_C(C::Ufunc(i)) => V_C(C::$ident(FromAsPrimitive::from_as(i))),
                     V_C(C::F32(i)) => V_C(C::$ident(FromAsPrimitive::from_as(i))),
                     V_C(C::F64(i)) => V_C(C::$ident(FromAsPrimitive::from_as(i))),
                     $(
@@ -75,6 +77,7 @@ impl<'a, 'b, L: AssemblyLanguage<'a>> ExpressionEvaluator<'a, 'b, L> {
             "i128" => numeric_cast!(I128, Bool, Char),
             "isize" => numeric_cast!(Isize, Bool, Char),
             "iptr" => numeric_cast!(Iptr, Bool, Char),
+            "ifunc" => numeric_cast!(Ifunc, Bool, Char),
             "u8" => numeric_cast!(U8, Bool, Char),
             "u16" => numeric_cast!(U16, Bool, Char),
             "u32" => numeric_cast!(U32, Bool, Char),
@@ -82,6 +85,7 @@ impl<'a, 'b, L: AssemblyLanguage<'a>> ExpressionEvaluator<'a, 'b, L> {
             "u128" => numeric_cast!(U128, Bool, Char),
             "usize" => numeric_cast!(Usize, Bool, Char),
             "uptr" => numeric_cast!(Uptr, Bool, Char),
+            "ufunc" => numeric_cast!(Ufunc, Bool, Char),
             "f32" => numeric_cast!(F32),
             "f64" => numeric_cast!(F64),
             "char" => match expr.0 {

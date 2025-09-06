@@ -90,6 +90,7 @@ integer!(
     (i128, "i128", checked_cast_i128, I128, I128Arg,),
     (L::Isize, "isize", checked_cast_isize, Isize, IsizeArg,),
     (L::Iptr, "iptr", checked_cast_iptr, Iptr, IptrArg,),
+    (L::Ifunc, "ifunc", checked_cast_ifunc, Ifunc, IfuncArg,),
     (u8, "u8", checked_cast_u8, U8, U8Arg, U8Pow2Arg),
     (u16, "u16", checked_cast_u16, U16, U16Arg, U16Pow2Arg),
     (u32, "u32", checked_cast_u32, U32, U32Arg, U32Pow2Arg),
@@ -111,13 +112,19 @@ integer!(
         UptrArg,
         UptrPow2Arg
     ),
+    (
+        L::Ufunc,
+        "ufunc",
+        checked_cast_ufunc,
+        Ufunc,
+        UfuncArg,
+        UfuncPow2Arg
+    ),
     (f32, "f32", checked_cast_f32, F32, F32Arg,),
     (f64, "f64", checked_cast_f64, F64, F64Arg,),
     (char, "char", checked_cast_char, Char, CharArg,),
     (bool, "bool", checked_cast_bool, Bool, BoolArg,),
 );
-
-// value!(char, "char", Char, CharArg, bool, "bool", Bool, BoolArg,);
 
 #[non_exhaustive]
 pub enum AsmStrArg<'a, L> {

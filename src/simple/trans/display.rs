@@ -77,7 +77,12 @@ impl<T: PrimInt + LowerHex> Symbol<T> {
             )?;
         }
         if let Some(dbg) = trans.symbols.get_symbol_dbg(idx) {
-            let list_size = trans.symbols.len().checked_ilog10().map(|v| v as usize +1).unwrap_or(0);
+            let list_size = trans
+                .symbols
+                .len()
+                .checked_ilog10()
+                .map(|v| v as usize + 1)
+                .unwrap_or(0);
             if let Some(def) = &dbg.definition {
                 write!(
                     f,
@@ -129,7 +134,12 @@ impl<T: PrimInt + LowerHex> Symbols<T> {
         let visibility = "Vis";
         let section = "Section";
         let name = "Name";
-        let list_size = trans.symbols.len().checked_ilog10().map(|v| v as usize +1).unwrap_or(0);
+        let list_size = trans
+            .symbols
+            .len()
+            .checked_ilog10()
+            .map(|v| v as usize + 1)
+            .unwrap_or(0);
         writeln!(
             f,
             "{:list_size$}  {offset: >int_size$} {size: >int_size$} {kind:10} {visibility:6} {section:10} {name}",

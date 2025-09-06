@@ -29,6 +29,8 @@ impl<'a, T: SimpleAssemblyLanguage<'a>> crate::assembler::lang::AssemblyLanguage
     type Isize = T::Isize;
     type Uptr = T::Uptr;
     type Iptr = T::Iptr;
+    type Ufunc = T::Ufunc;
+    type Ifunc = T::Ifunc;
 
     const DEFAULT_INTEGER_POSTFIX: &'a str = "i32";
     const DEFAULT_FLOAT_POSTFIX: &'a str = "f32";

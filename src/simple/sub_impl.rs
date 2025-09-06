@@ -25,6 +25,7 @@ pub trait SimpleAssemblyLanguageBase<'a>: SimpleAssemblyLanguage<'a> {
                 Constant::I128(v) => dat!(&v.to_le_bytes()),
                 Constant::Isize(v) => dat!(v.to_le_bytes().as_ref()),
                 Constant::Iptr(v) => dat!(v.to_le_bytes().as_ref()),
+                Constant::Ifunc(v) => dat!(v.to_le_bytes().as_ref()),
                 Constant::U8(v) => dat!(&v.to_le_bytes()),
                 Constant::U16(v) => dat!(&v.to_le_bytes()),
                 Constant::U32(v) => dat!(&v.to_le_bytes()),
@@ -32,6 +33,7 @@ pub trait SimpleAssemblyLanguageBase<'a>: SimpleAssemblyLanguage<'a> {
                 Constant::U128(v) => dat!(&v.to_le_bytes()),
                 Constant::Usize(v) => dat!(v.to_le_bytes().as_ref()),
                 Constant::Uptr(v) => dat!(v.to_le_bytes().as_ref()),
+                Constant::Ufunc(v) => dat!(v.to_le_bytes().as_ref()),
                 Constant::F32(v) => dat!(&v.to_le_bytes()),
                 Constant::F64(v) => dat!(&v.to_le_bytes()),
                 Constant::Str(v) => match v {
@@ -53,6 +55,7 @@ pub trait SimpleAssemblyLanguageBase<'a>: SimpleAssemblyLanguage<'a> {
                 Constant::I128(v) => dat!(&v.to_be_bytes()),
                 Constant::Isize(v) => dat!(v.to_be_bytes().as_ref()),
                 Constant::Iptr(v) => dat!(v.to_be_bytes().as_ref()),
+                Constant::Ifunc(v) => dat!(v.to_be_bytes().as_ref()),
                 Constant::U8(v) => dat!(&v.to_be_bytes()),
                 Constant::U16(v) => dat!(&v.to_be_bytes()),
                 Constant::U32(v) => dat!(&v.to_be_bytes()),
@@ -60,6 +63,7 @@ pub trait SimpleAssemblyLanguageBase<'a>: SimpleAssemblyLanguage<'a> {
                 Constant::U128(v) => dat!(&v.to_be_bytes()),
                 Constant::Usize(v) => dat!(v.to_be_bytes().as_ref()),
                 Constant::Uptr(v) => dat!(v.to_be_bytes().as_ref()),
+                Constant::Ufunc(v) => dat!(v.to_be_bytes().as_ref()),
                 Constant::F32(v) => dat!(&v.to_be_bytes()),
                 Constant::F64(v) => dat!(&v.to_be_bytes()),
                 Constant::Str(v) => match v {
