@@ -161,76 +161,35 @@ impl<'a, T: SimpleAssemblyLanguage<'a>> crate::assembler::lang::AssemblyLanguage
                     .report_error(args_node, args.iter().map(|i| i.0).delim(" "))
             }
 
-            ".section" => {
-                if let StrArg::Val(Some(sec)) = ctx.eval(self).coerced(n).0 {
-                    self.set_section(ctx, sec, n);
-                }
-            }
-            ".align" => {
-                if let UptrPow2Arg::Val(Some(align)) = ctx.eval(self).coerced(n).0 {
-                    todo!("align: {align}")
-                }
-            }
-
             ".label" => {
                 if let Node(StrArg::Val(Some(label)), n) = ctx.eval(self).coerced(n) {
                     self.encounter_label(ctx, label, n);
                 }
             }
-            ".global" => {
-                if let Node(StrArg::Val(Some(label)), n) = ctx.eval(self).coerced(n) {
-                    let section = self.state_mut().expect_section(ctx.context, n);
-                    let node = ctx.context.node_to_owned(n);
-                    let result = self
-                        .state_mut()
-                        .trans
-                        .resolve_mut(section)
-                        .set_symbol_visibility(
-                            label,
-                            trans::sym::SymbolVisibility::Global,
-                            Some(node.clone()),
-                        );
+            ".global"|".weak"|".local" => {
+                if let Node(StrArg::Val(Some(label)), node) = ctx.eval(self).coerced(n) {
+                    let node_owned = ctx.context.node_to_owned(n);
+                    let result = self.current_section_mut(ctx, node).set_symbol_visibility(
+                        label,
+                        match mnemonic{
+                            ".global" => trans::sym::SymbolVisibility::Global,
+                            ".Weak" => trans::sym::SymbolVisibility::Weak,
+                            ".Local" => trans::sym::SymbolVisibility::Local,
+                            _ => unreachable!()
+                        },
+                        Some(node_owned.clone()),
+                    );
                     if let Err(err) = result {
-                        ctx.context.report_owned(err.to_log_entry(label, node));
+                        ctx.context
+                            .report_owned(err.to_log_entry(label, node_owned));
                     }
                 }
             }
-            ".weak" => {
-                if let Node(StrArg::Val(Some(label)), n) = ctx.eval(self).coerced(n) {
-                    let section = self.state_mut().expect_section(ctx.context, n);
-                    let node = ctx.context.node_to_owned(n);
-                    let result = self
-                        .state_mut()
-                        .trans
-                        .resolve_mut(section)
-                        .set_symbol_visibility(
-                            label,
-                            trans::sym::SymbolVisibility::Weak,
-                            Some(node.clone()),
-                        );
-                    if let Err(err) = result {
-                        ctx.context.report_owned(err.to_log_entry(label, node));
-                    }
-                }
-            }
-            ".local" => {
-                if let Node(StrArg::Val(Some(label)), n) = ctx.eval(self).coerced(n) {
-                    let section = self.state_mut().expect_section(ctx.context, n);
-                    let node = ctx.context.node_to_owned(n);
-                    let result = self
-                        .state_mut()
-                        .trans
-                        .resolve_mut(section)
-                        .set_symbol_visibility(
-                            label,
-                            trans::sym::SymbolVisibility::Local,
-                            Some(node.clone()),
-                        );
-                    if let Err(err) = result {
-                        ctx.context.report_owned(err.to_log_entry(label, node));
-                    }
-                }
-            }
+            ".align" => match ctx.eval(self).coerced(n).0 {
+                (UptrPow2Arg::Val(Some(align)), None) => {}
+                (UptrPow2Arg::Val(Some(align)), Some(StrArg::Val(Some(str)))) => {}
+                _ => {}
+            },
             ".type" => {
                 if let Node((StrArg::Val(Some(label)), AsmStrArg::Val(Some(ty))), n) =
                     ctx.eval(self).coerced(n)
@@ -286,6 +245,12 @@ impl<'a, T: SimpleAssemblyLanguage<'a>> crate::assembler::lang::AssemblyLanguage
                     }
                 }
             }
+
+            ".section" => {
+                if let StrArg::Val(Some(sec)) = ctx.eval(self).coerced(n).0 {
+                    self.set_section(ctx, sec, n);
+                }
+            }
             ".text" => {
                 let Node((), node) = ctx.eval(self).coerced(n);
                 self.set_section(ctx, ".test", node);
@@ -313,14 +278,15 @@ impl<'a, T: SimpleAssemblyLanguage<'a>> crate::assembler::lang::AssemblyLanguage
                     self.add_value_data(ctx, arg.0, arg.1);
                 }
             }
-            ".stringz" => {
-                for Node(crate::expression::args::AsmStrArg::Val(arg), n) in
+            ".cstring" => {
+                for Node(crate::expression::args::CStrArg::Val(arg), n) in
                     ctx.eval(self).coerced::<Vec<_>>(n).0
                 {
-                    self.add_constant_data(ctx, Constant::Str(arg.unwrap_or_default()), n);
-                    if !matches!(arg, Some(AsmStr::CStr(_))) {
-                        self.add_constant_data(ctx, Constant::U8(0), n);
-                    }
+                    self.add_constant_data(
+                        ctx,
+                        Constant::Str(AsmStr::CStr(arg.unwrap_or_default())),
+                        n,
+                    );
                 }
             }
             ".string" => {
@@ -346,8 +312,10 @@ impl<'a, T: SimpleAssemblyLanguage<'a>> crate::assembler::lang::AssemblyLanguage
             ".char" => constant!(CharArg, Char),
             ".iptr" => constant!(IptrArg, Iptr),
             ".isize" => constant!(IsizeArg, Isize),
+            ".ifunc" => constant!(IfuncArg, Ifunc),
             ".uptr" => constant!(UptrArg, Uptr),
             ".usize" => constant!(UsizeArg, Usize),
+            ".ufunc" => constant!(UfuncArg, Ufunc),
 
             _ => self.assemble_mnemonic(ctx, mnemonic, n),
         }

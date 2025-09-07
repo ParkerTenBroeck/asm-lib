@@ -15,9 +15,15 @@ pub type NodeVal<'a> = assembler::expression::NodeVal<'a, MipsAssembler<'a>>;
 pub fn main() {
     let src = r#"
 
+    .text
+
+    _start: 
     add x1,x2,x3
 
 
+    .section "stack"
+    .align 1<<12
+    .space 1<<12
     "#;
     let res = assembler::assemble(
         &Default::default(),
@@ -28,7 +34,7 @@ pub fn main() {
         Sources::new(Box::new(|path, _| {
             if path == Path::new("file.asm") {
                 Ok(assembler::source::SourceContents::Text(src))
-            }else{
+            } else {
                 Err("file does not exist".into())
             }
         })),

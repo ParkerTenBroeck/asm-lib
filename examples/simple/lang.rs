@@ -1,7 +1,9 @@
 use std::str::FromStr;
 
 use assembler::{
-    Node, NodeRef, expression::{Constant, EmptyCustomValue, ExprCtx, Value, ValueType, args::RegArg}, simple::{SALState, SimpleAssemblyLanguage, SimpleAssemblyLanguageBase}
+    Node, NodeRef,
+    expression::{Constant, EmptyCustomValue, ExprCtx, Value, ValueType, args::RegArg},
+    simple::{SALState, SimpleAssemblyLanguage, SimpleAssemblyLanguageBase},
 };
 
 use crate::{
@@ -53,7 +55,7 @@ impl<'a> MipsAssembler<'a> {
         node: assembler::NodeRef<'a>,
         opcode: Opcodes,
     ) {
-        let (RegArg(rd), RegArg(rs), RegArg(rt)) = ctx.eval(self).coerced(node).0;
+        let Node((RegArg(rd), RegArg(rs), RegArg(rt)), node) = ctx.eval(self).coerced(node);
 
         self.instruction(
             ctx,
@@ -71,7 +73,7 @@ impl<'a> MipsAssembler<'a> {
         node: assembler::NodeRef<'a>,
         opcode: Opcodes,
     ) {
-        let (RegArg(rs), RegArg(rt)) = ctx.eval(self).coerced(node).0;
+        let Node((RegArg(rs), RegArg(rt)), node) = ctx.eval(self).coerced(node);
 
         self.instruction(
             ctx,
@@ -108,7 +110,8 @@ impl<'a> MipsAssembler<'a> {
         node: assembler::NodeRef<'a>,
         opcode: Opcodes,
     ) {
-        let Node((RegArg(rd), RegArg(rs), shift), node): Node<(_, _, ShiftConstant)> = ctx.eval(self).coerced(node);
+        let Node((RegArg(rd), RegArg(rs), shift), node): Node<(_, _, ShiftConstant)> =
+            ctx.eval(self).coerced(node);
 
         self.instruction(
             ctx,
@@ -147,7 +150,7 @@ impl<'a> MipsAssembler<'a> {
         node: assembler::NodeRef<'a>,
         opcode: Opcodes,
     ) {
-        let  Node((RegArg(rs), RegArg(rt), immediate), node) = ctx.eval(self).coerced(node);
+        let Node((RegArg(rs), RegArg(rt), immediate), node) = ctx.eval(self).coerced(node);
 
         match immediate {
             Immediate::Label(l) => {}
@@ -268,8 +271,8 @@ impl<'a> SimpleAssemblyLanguage<'a> for MipsAssembler<'a> {
             "swl" => self.i_type_rs_rt(ctx, node, Opcodes::Swl),
             "swr" => self.i_type_rs_rt(ctx, node, Opcodes::Swr),
 
-            // "j" => self.i_type_rs_rt(ctx, node, Opcodes::J),
-            // "jal" => self.i_type_rs_rt(ctx, node, Opcodes::Jal),
+            // "j" => self.j_type(ctx, node, Opcodes::J),
+            // "jal" => self.j_type(ctx, node, Opcodes::Jal),
             // "jalr" => self.i_type_rs_rt(ctx, node, Opcodes::Jalr),
             // "jr" => self.i_type_rs_rt(ctx, node, Opcodes::Jr),
 
@@ -281,7 +284,6 @@ impl<'a> SimpleAssemblyLanguage<'a> for MipsAssembler<'a> {
             // "bltz" => self.i_type_rs_rt(ctx, node, Opcodes::Bltz),
             // "bltzal" => self.i_type_rs_rt(ctx, node, Opcodes::Bltzal),
             // "bne" => self.i_type_rs_rt(ctx, node, Opcodes::Bne),
-
             "lui" => self.i_type_rd(ctx, node, Opcodes::Lui),
 
             "break" => self.instruction(ctx, node, Opcodes::Break as u32),

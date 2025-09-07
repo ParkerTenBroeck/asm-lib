@@ -1,4 +1,6 @@
-use crate::{assembler::LangCtx, context::NodeRef, expression::Constant};
+use crate::{
+    assembler::LangCtx, context::NodeRef, expression::Constant, simple::trans::SectionMut,
+};
 
 use super::*;
 
@@ -112,6 +114,18 @@ pub trait SimpleAssemblyLanguageBase<'a>: SimpleAssemblyLanguage<'a> {
 
     fn set_section(&mut self, _: &mut LangCtx<'a, '_, Self>, section: &'a str, _: NodeRef<'a>) {
         self.state_mut().current_section = Some(section);
+    }
+
+    fn current_section_mut<'b>(
+        &'b mut self,
+        ctx: &mut LangCtx<'a, '_, Self>,
+        node: NodeRef<'a>,
+    ) -> SectionMut<'b, Self::TranslationUnitMachine>
+    where
+        'a: 'b,
+    {
+        let section = self.state_mut().expect_section(ctx.context, node);
+        self.state_mut().trans.resolve_mut(section)
     }
 }
 
