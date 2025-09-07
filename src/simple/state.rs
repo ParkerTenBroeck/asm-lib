@@ -3,14 +3,13 @@ use crate::simple::SimpleAssemblyLanguage;
 use crate::simple::trans::TranslationUnit;
 use crate::{context::NodeRef, logs::LogEntry};
 
-#[derive(Clone, Copy, Eq, PartialEq, Debug, Default)]
+#[derive(Clone, Copy, Eq, PartialEq, Debug)]
 pub enum Endianess {
-    #[default]
     Little,
     Big,
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 pub struct SALState<'a, L: SimpleAssemblyLanguage<'a>> {
     pub current_section: Option<&'a str>,
     pub last_non_local_label: Option<&'a str>,
@@ -19,6 +18,14 @@ pub struct SALState<'a, L: SimpleAssemblyLanguage<'a>> {
 }
 
 impl<'a, L: SimpleAssemblyLanguage<'a>> SALState<'a, L> {
+    pub fn new(endianess: Endianess) -> Self {
+        Self {
+            current_section: None,
+            last_non_local_label: None,
+            endianess,
+            trans: TranslationUnit::new(),
+        }
+    }
     pub fn expect_section(&mut self, context: &mut Context<'a>, node: NodeRef<'a>) -> &'a str {
         if self.current_section.is_none() {
             context.report(LogEntry::new()

@@ -33,19 +33,19 @@ pub const fn imm_26(imm: u32) -> u32 {
 #[repr(u32)]
 pub enum Opcodes {
     Add = opcode(0) | shamt(0) | funct(0b100000),
+    Addu = opcode(0) | shamt(0) | funct(0b100001),
     Sub = opcode(0) | shamt(0) | funct(0b100010),
     Subu = opcode(0) | shamt(0) | funct(0b100011),
     And = opcode(0) | shamt(0) | funct(0b100100),
     Nor = opcode(0) | shamt(0) | funct(0b100111),
     Or = opcode(0) | shamt(0) | funct(0b100101),
     Xor = opcode(0) | shamt(0) | funct(0b100110),
-    Addu = opcode(0) | shamt(0) | funct(0b100001),
 
     Addi = opcode(0b001000),
+    Addiu = opcode(0b001001),
     Ori = opcode(0b001101),
     Xori = opcode(0b001110),
     Andi = opcode(0b001100),
-    Addiu = opcode(0b001001),
 
     Sll = opcode(0b000000) | funct(0b000000),
     Sllv = opcode(0b000000) | funct(0b000100),
