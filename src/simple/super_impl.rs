@@ -295,16 +295,32 @@ impl<'a, T: SimpleAssemblyLanguage<'a>> crate::assembler::lang::AssemblyLanguage
                 let size = if let Some(UptrArg::Val(size)) = size {
                     size.unwrap_or_default()
                 } else {
-                    let Some(symbol) = self.state_mut().trans.resolve_symbol(label) else{
-                        ctx.context.report_error(node, "cannot set implicit size on symbol that has not been bound");
+                    let Some(symbol) = self.state_mut().trans.resolve_symbol(label) else {
+                        ctx.context.report_error(
+                            node,
+                            "cannot set implicit size on symbol that has not been bound",
+                        );
                         return;
                     };
-                    let Symbol{section: Some(section_idx), offset, ..} = *self.state_mut().trans.get_symbol(symbol) else{
-                        ctx.context.report_error(node, "cannot set implicit size on symbol that has not been bound");
+                    let Symbol {
+                        section: Some(section_idx),
+                        offset,
+                        ..
+                    } = *self.state_mut().trans.get_symbol(symbol)
+                    else {
+                        ctx.context.report_error(
+                            node,
+                            "cannot set implicit size on symbol that has not been bound",
+                        );
                         return;
                     };
 
-                    self.state_mut().trans.get(section_idx).data.current_offset().wrapping_sub(&offset)
+                    self.state_mut()
+                        .trans
+                        .get(section_idx)
+                        .data
+                        .current_offset()
+                        .wrapping_sub(&offset)
                 };
                 let node_owned = ctx.context.node_to_owned(node);
                 let result = self.state_mut().trans.set_symbol_size(
@@ -323,21 +339,9 @@ impl<'a, T: SimpleAssemblyLanguage<'a>> crate::assembler::lang::AssemblyLanguage
                     self.set_section(ctx, sec, n);
                 }
             }
-            ".text" => {
+            ".text" | ".bss" | ".data" | ".rodata" => {
                 let Node((), node) = ctx.eval(self).coerced(n);
-                self.set_section(ctx, ".test", node);
-            }
-            ".bss" => {
-                let Node((), node) = ctx.eval(self).coerced(n);
-                self.set_section(ctx, ".bss", node);
-            }
-            ".data" => {
-                let Node((), node) = ctx.eval(self).coerced(n);
-                self.set_section(ctx, ".data", node);
-            }
-            ".rodata" => {
-                let Node((), node) = ctx.eval(self).coerced(n);
-                self.set_section(ctx, ".rodata", node);
+                self.set_section(ctx, mnemonic, node);
             }
 
             ".space" => {

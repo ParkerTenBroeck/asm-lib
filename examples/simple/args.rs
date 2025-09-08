@@ -1,6 +1,6 @@
 use assembler::{
     Context, NodeRef,
-    expression::{Value, ValueType, args::CoercedArg},
+    expression::{Constant, Value, ValueType, args::CoercedArg},
 };
 
 use crate::{MipsAssembler, label::LabelExpr};
@@ -38,6 +38,69 @@ impl<'a> CoercedArg<'a> for Immediate<'a> {
                 )),
             },
             Value::Label(label) => Ok(Immediate::Label(label)),
+            _ => Err(None),
+        }
+    }
+
+    fn default(_: &mut Context<'a>, _: NodeRef<'a>) -> Self {
+        Default::default()
+    }
+}
+
+
+pub enum ImmediateU16<'a> {
+    Constant(u16),
+    Label(LabelExpr<'a>),
+}
+impl<'a> Default for ImmediateU16<'a> {
+    fn default() -> Self {
+        Self::Constant(0)
+    }
+}
+impl<'a> CoercedArg<'a> for ImmediateU16<'a> {
+    type LANG = MipsAssembler<'a>;
+    const TYPE_REPR: &'static str = "u16|label";
+    const HINT: ValueType<'a, MipsAssembler<'a>> = ValueType::U16;
+
+    fn from_arg(
+        _: &mut Context<'a>,
+        _: NodeRef<'a>,
+        value: Value<'a, MipsAssembler<'a>>,
+    ) -> Result<Self, Option<String>> {
+        match value {
+            Value::Constant(Constant::U16(v)) => Ok(Self::Constant(v)),
+            Value::Label(label) => Ok(Self::Label(label)),
+            _ => Err(None),
+        }
+    }
+
+    fn default(_: &mut Context<'a>, _: NodeRef<'a>) -> Self {
+        Default::default()
+    }
+}
+
+pub enum ImmediateI16<'a> {
+    Constant(i16),
+    Label(LabelExpr<'a>),
+}
+impl<'a> Default for ImmediateI16<'a> {
+    fn default() -> Self {
+        Self::Constant(0)
+    }
+}
+impl<'a> CoercedArg<'a> for ImmediateI16<'a> {
+    type LANG = MipsAssembler<'a>;
+    const TYPE_REPR: &'static str = "i16|label";
+    const HINT: ValueType<'a, MipsAssembler<'a>> = ValueType::I16;
+
+    fn from_arg(
+        _: &mut Context<'a>,
+        _: NodeRef<'a>,
+        value: Value<'a, MipsAssembler<'a>>,
+    ) -> Result<Self, Option<String>> {
+        match value {
+            Value::Constant(Constant::I16(v)) => Ok(Self::Constant(v)),
+            Value::Label(label) => Ok(Self::Label(label)),
             _ => Err(None),
         }
     }

@@ -135,7 +135,7 @@ impl<T: TranslationUnitMachine> TranslationUnit<T> {
         self.symbols.resolve(self.str_table.resolve(name))
     }
 
-    pub fn get_symbol(&mut self, symbol_idx: SymbolIdx) -> &mut Symbol<T::PtrSizeType>{
+    pub fn get_symbol(&mut self, symbol_idx: SymbolIdx) -> &mut Symbol<T::PtrSizeType> {
         self.symbols.symbol(symbol_idx)
     }
 

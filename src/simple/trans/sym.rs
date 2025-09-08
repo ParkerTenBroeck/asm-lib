@@ -152,7 +152,7 @@ impl<T: PrimInt> Symbols<T> {
         }
     }
 
-     pub fn resolve(&mut self, name: StrIdx) -> Option<SymbolIdx> {
+    pub fn resolve(&mut self, name: StrIdx) -> Option<SymbolIdx> {
         self.symbol_map.get(&name).copied()
     }
 
