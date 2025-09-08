@@ -489,7 +489,7 @@ impl<'a, 'b, L: AssemblyLanguage<'a>> ExpressionEvaluator<'a, 'b, L> {
 
         loop {
             match self.peek() {
-                Some(Node(Token::NewLine, _)) | None => {
+                Some(Node(Token::NewLine | Token::Semicolon, _)) | None => {
                     if let Some(Node(_, last)) = args.last().copied() {
                         return Node(args, self.context.merge_nodes(init, last));
                     } else {

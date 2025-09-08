@@ -8,6 +8,6 @@ impl TranslationUnitMachine for MipsTranslationUnit {
 }
 
 #[derive(Debug, Clone)]
-pub enum MipsReloc {}
+pub struct MipsReloc {}
 
 impl Reloc for MipsReloc {}

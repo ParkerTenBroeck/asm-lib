@@ -91,12 +91,12 @@ impl<'a, 'b, T: AssemblyLanguage<'a>> Assembler<'a, 'b, T> {
         self.preprocessor
             .begin(PreProcessorCtx::new(self.context, self.lang));
 
-        while let Some(Node(Token::NewLine, _)) = self.peek() {
+        while let Some(Node(Token::NewLine | Token::Semicolon, _)) = self.peek() {
             self.next();
         }
         while self.peek().is_some() {
             self.assemble_line();
-            while let Some(Node(Token::NewLine, _)) = self.peek() {
+            while let Some(Node(Token::NewLine | Token::Semicolon, _)) = self.peek() {
                 self.next();
             }
         }
@@ -126,7 +126,7 @@ impl<'a, 'b, T: AssemblyLanguage<'a>> Assembler<'a, 'b, T> {
                 );
                 loop {
                     match self.peek() {
-                        None | Some(Node(Token::NewLine, _)) => break,
+                        None | Some(Node(Token::NewLine | Token::Semicolon, _)) => break,
                         Some(Node(t, n)) => self.context.report_error(
                             n,
                             format!("unexpected token '{t:#}' at end of statement"),
@@ -154,7 +154,10 @@ impl<'a, 'b, T: AssemblyLanguage<'a>> Assembler<'a, 'b, T> {
         self.context
             .report_error(n, format!("unrecognized mnemonic '{mnemonic}'"));
 
-        while !matches!(self.peek(), None | Some(Node(Token::NewLine, _))) {
+        while !matches!(
+            self.peek(),
+            None | Some(Node(Token::NewLine | Token::Semicolon, _))
+        ) {
             self.next();
         }
     }

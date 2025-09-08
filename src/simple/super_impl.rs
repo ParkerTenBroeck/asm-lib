@@ -1,18 +1,19 @@
-use crate::expression::args::{AsmStrArg, UptrArg, UptrPow2Arg};
+use crate::expression::args::{IdentStrArg, RawIdentStrArg, UptrArg, UptrPow2Arg};
 use crate::node::NodeTrait;
 use crate::simple::trans::TranslationUnit;
+use crate::simple::trans::sym::Symbol;
 use crate::{
     assembler::LangCtx,
     context::{Node, NodeRef},
     expression::{
         ArgumentsTypeHint, AsmStr, Constant, ExprCtx, FuncParamParser, NodeVal, Value, ValueType,
-        args::StrArg, binop::BinOp, unop::UnOp,
+        binop::BinOp, unop::UnOp,
     },
     lex::Number,
     util::IntoStrDelimable,
 };
 
-use num_traits::AsPrimitive;
+use num_traits::{AsPrimitive, WrappingSub};
 use std::os::unix::ffi::OsStrExt;
 
 use super::*;
@@ -38,22 +39,35 @@ impl<'a, T: SimpleAssemblyLanguage<'a>> crate::assembler::lang::AssemblyLanguage
     fn parse_ident(
         &mut self,
         ctx: &mut ExprCtx<'a, '_, Self>,
-        ident: Node<'a, &'a str>,
+        Node(mut ident, node): Node<'a, &'a str>,
         hint: crate::expression::ValueType<'a, Self>,
     ) -> crate::expression::Value<'a, Self> {
-        match ident.0 {
-            "__line__" => Value::Constant(Constant::U32(ident.1.top().span.line.wrapping_add(1))),
-            "__col__" => Value::Constant(Constant::U32(ident.1.top().span.col)),
-            "__len__" => Value::Constant(Constant::U32(ident.1.top().span.len)),
-            "__offset__" => Value::Constant(Constant::U32(ident.1.top().span.offset)),
+        if hint == ValueType::RawIdent {
+            return Value::Ident(ident);
+        }
+
+        if ident.starts_with('.')
+            && let Some(prev) = self.state_mut().expect_last_label(ctx.context, node)
+        {
+            ident = ctx.context.alloc_str(format!("{prev}{}", ident))
+        }
+
+        if hint == ValueType::Ident {
+            return Value::Ident(ident);
+        }
+        match ident {
+            "__line__" => Value::Constant(Constant::U32(node.top().span.line.wrapping_add(1))),
+            "__col__" => Value::Constant(Constant::U32(node.top().span.col)),
+            "__len__" => Value::Constant(Constant::U32(node.top().span.len)),
+            "__offset__" => Value::Constant(Constant::U32(node.top().span.offset)),
             "__file__" => Value::Constant(Constant::Str(
-                if let Some(str) = ident.1.top().source.path.as_os_str().to_str() {
+                if let Some(str) = node.top().source.path.as_os_str().to_str() {
                     AsmStr::Str(str)
                 } else {
-                    AsmStr::ByteStr(ident.1.top().source.path.as_os_str().as_bytes())
+                    AsmStr::ByteStr(node.top().source.path.as_os_str().as_bytes())
                 },
             )),
-            _ => self.parse_ident(ctx, ident, hint),
+            _ => self.parse_ident(ctx, Node(ident, node), hint),
         }
     }
 
@@ -162,92 +176,150 @@ impl<'a, T: SimpleAssemblyLanguage<'a>> crate::assembler::lang::AssemblyLanguage
             }
 
             ".label" => {
-                if let Node(StrArg::Val(Some(label)), n) = ctx.eval(self).coerced(n) {
+                if let Node(IdentStrArg::Val(Some(label)), n) = ctx.eval(self).coerced(n) {
                     self.encounter_label(ctx, label, n);
                 }
             }
-            ".global"|".weak"|".local" => {
-                if let Node(StrArg::Val(Some(label)), node) = ctx.eval(self).coerced(n) {
-                    let node_owned = ctx.context.node_to_owned(n);
-                    let result = self.current_section_mut(ctx, node).set_symbol_visibility(
-                        label,
-                        match mnemonic{
-                            ".global" => trans::sym::SymbolVisibility::Global,
-                            ".Weak" => trans::sym::SymbolVisibility::Weak,
-                            ".Local" => trans::sym::SymbolVisibility::Local,
-                            _ => unreachable!()
-                        },
-                        Some(node_owned.clone()),
-                    );
-                    if let Err(err) = result {
-                        ctx.context
-                            .report_owned(err.to_log_entry(label, node_owned));
-                    }
-                }
-            }
-            ".align" => match ctx.eval(self).coerced(n).0 {
-                (UptrPow2Arg::Val(Some(align)), None) => {}
-                (UptrPow2Arg::Val(Some(align)), Some(StrArg::Val(Some(str)))) => {}
-                _ => {}
-            },
-            ".type" => {
-                if let Node((StrArg::Val(Some(label)), AsmStrArg::Val(Some(ty))), n) =
-                    ctx.eval(self).coerced(n)
-                {
-                    let section = self.state_mut().expect_section(ctx.context, n);
-                    let node = ctx.context.node_to_owned(n);
-                    let mut section = self.state_mut().trans.resolve_mut(section);
-                    let result = match ty.as_bytes() {
-                        b"func" => section.set_symbol_ty(
-                            label,
-                            trans::sym::SymbolType::Function,
-                            Some(node.clone()),
-                        ),
-                        b"obj" => section.set_symbol_ty(
-                            label,
-                            trans::sym::SymbolType::Object,
-                            Some(node.clone()),
-                        ),
-                        b"data" => section.set_symbol_ty(
-                            label,
-                            trans::sym::SymbolType::Data,
-                            Some(node.clone()),
-                        ),
-                        b"common" => section.set_symbol_ty(
-                            label,
-                            trans::sym::SymbolType::Common,
-                            Some(node.clone()),
-                        ),
-                        _ => {
-                            ctx.context
-                                .report_error(n, format!("unknown symbol type '{ty}'"));
+            ".global" | ".weak" | ".local" => {
+                let Node(args, node) = ctx.eval(self).coerced(n);
+                let label = match args {
+                    None => {
+                        if let Some(label) = self.state_mut().expect_last_label(ctx.context, node) {
+                            label
+                        } else {
                             return;
                         }
-                    };
-                    if let Err(err) = result {
-                        ctx.context.report_owned(err.to_log_entry(label, node));
                     }
+                    Some(IdentStrArg::Val(Some(label))) => label,
+                    _ => return,
+                };
+                let node_owned = ctx.context.node_to_owned(node);
+                let result = self.state_mut().trans.set_symbol_visibility(
+                    label,
+                    match mnemonic {
+                        ".global" => trans::sym::SymbolVisibility::Global,
+                        ".Weak" => trans::sym::SymbolVisibility::Weak,
+                        ".Local" => trans::sym::SymbolVisibility::Local,
+                        _ => unreachable!(),
+                    },
+                    Some(node_owned.clone()),
+                );
+                if let Err(err) = result {
+                    ctx.context
+                        .report_owned(err.to_log_entry(label, node_owned));
+                }
+            }
+            ".align" => {
+                let Node(args, node) = ctx.eval(self).coerced(n);
+                let (align, label) = match args {
+                    (UptrPow2Arg::Val(Some(align)), None) => (
+                        align,
+                        if let Some(label) = self.state_mut().expect_last_label(ctx.context, node) {
+                            label
+                        } else {
+                            return;
+                        },
+                    ),
+                    (UptrPow2Arg::Val(Some(align)), Some(IdentStrArg::Val(Some(label)))) => {
+                        (align, label)
+                    }
+                    _ => return,
+                };
+            }
+            ".type" => {
+                let Node(args, node) = ctx.eval(self).coerced(n);
+                let (ty, label) = match args {
+                    (RawIdentStrArg::Val(Some(ty)), None) => (
+                        ty,
+                        if let Some(label) = self.state_mut().expect_last_label(ctx.context, node) {
+                            label
+                        } else {
+                            return;
+                        },
+                    ),
+                    (RawIdentStrArg::Val(Some(ty)), Some(IdentStrArg::Val(Some(label)))) => {
+                        (ty, label)
+                    }
+                    _ => return,
+                };
+                let node_owned = ctx.context.node_to_owned(node);
+                let result = match ty.as_bytes() {
+                    b"func" => self.state_mut().trans.set_symbol_ty(
+                        label,
+                        trans::sym::SymbolType::Function,
+                        Some(node_owned.clone()),
+                    ),
+                    b"obj" => self.state_mut().trans.set_symbol_ty(
+                        label,
+                        trans::sym::SymbolType::Object,
+                        Some(node_owned.clone()),
+                    ),
+                    b"data" => self.state_mut().trans.set_symbol_ty(
+                        label,
+                        trans::sym::SymbolType::Data,
+                        Some(node_owned.clone()),
+                    ),
+                    b"common" => self.state_mut().trans.set_symbol_ty(
+                        label,
+                        trans::sym::SymbolType::Common,
+                        Some(node_owned.clone()),
+                    ),
+                    _ => {
+                        ctx.context
+                            .report_error(n, format!("unknown symbol type '{ty}'"));
+                        return;
+                    }
+                };
+                if let Err(err) = result {
+                    ctx.context
+                        .report_owned(err.to_log_entry(label, node_owned));
                 }
             }
             ".size" => {
-                if let Node((StrArg::Val(Some(label)), UptrArg::Val(Some(size))), n) =
-                    ctx.eval(self).coerced(n)
-                {
-                    let section = self.state_mut().expect_section(ctx.context, n);
-                    let node = ctx.context.node_to_owned(n);
-                    let result = self.state_mut().trans.resolve_mut(section).set_symbol_size(
-                        label,
-                        size.as_(),
-                        Some(node.clone()),
-                    );
-                    if let Err(err) = result {
-                        ctx.context.report_owned(err.to_log_entry(label, node));
+                let Node((size, label), node): Node<(
+                    Option<UptrArg<'a, _>>,
+                    Option<IdentStrArg<'a, _>>,
+                )> = ctx.eval(self).coerced(n);
+
+                let label = if let Some(IdentStrArg::Val(label)) = label {
+                    if let Some(label) = label {
+                        label
+                    } else {
+                        return;
                     }
+                } else if let Some(label) = self.state_mut().expect_last_label(ctx.context, node) {
+                    label
+                } else {
+                    return;
+                };
+                let size = if let Some(UptrArg::Val(size)) = size {
+                    size.unwrap_or_default()
+                } else {
+                    let Some(symbol) = self.state_mut().trans.resolve_symbol(label) else{
+                        ctx.context.report_error(node, "cannot set implicit size on symbol that has not been bound");
+                        return;
+                    };
+                    let Symbol{section: Some(section_idx), offset, ..} = *self.state_mut().trans.get_symbol(symbol) else{
+                        ctx.context.report_error(node, "cannot set implicit size on symbol that has not been bound");
+                        return;
+                    };
+
+                    self.state_mut().trans.get(section_idx).data.current_offset().wrapping_sub(&offset)
+                };
+                let node_owned = ctx.context.node_to_owned(node);
+                let result = self.state_mut().trans.set_symbol_size(
+                    label,
+                    size.as_(),
+                    Some(node_owned.clone()),
+                );
+                if let Err(err) = result {
+                    ctx.context
+                        .report_owned(err.to_log_entry(label, node_owned));
                 }
             }
 
             ".section" => {
-                if let StrArg::Val(Some(sec)) = ctx.eval(self).coerced(n).0 {
+                if let RawIdentStrArg::Val(Some(sec)) = ctx.eval(self).coerced(n).0 {
                     self.set_section(ctx, sec, n);
                 }
             }
@@ -341,8 +413,7 @@ impl<'a, T: SimpleAssemblyLanguage<'a>> crate::assembler::lang::AssemblyLanguage
             let result = self
                 .state_mut()
                 .trans
-                .resolve_mut(section)
-                .bind_symbol(label, Some(node.clone()));
+                .bind_symbol(label, section, Some(node.clone()));
 
             if let Err(err) = result {
                 ctx.context.report_owned(err.to_log_entry(label, node));

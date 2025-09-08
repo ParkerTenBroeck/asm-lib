@@ -18,7 +18,7 @@ impl<'a> Default for Immediate<'a> {
 impl<'a> CoercedArg<'a> for Immediate<'a> {
     type LANG = MipsAssembler<'a>;
     const TYPE_REPR: &'static str = "isize|usize|label";
-    const HINT: ValueType<'a, MipsAssembler<'a>> = ValueType::I32;
+    const HINT: ValueType<'a, MipsAssembler<'a>> = ValueType::Isize;
 
     fn from_arg(
         context: &mut Context<'a>,

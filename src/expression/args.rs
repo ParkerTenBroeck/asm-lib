@@ -328,6 +328,124 @@ impl<'a, L: AssemblyLanguage<'a>> CoercedArg<'a> for CStrRelaxedArg<'a, L> {
     }
 }
 
+#[non_exhaustive]
+pub enum IdentArg<'a, L> {
+    Val(Option<&'a str>),
+    __(Infallible, PhantomData<L>),
+}
+impl<'a, L: AssemblyLanguage<'a>> CoercedArg<'a> for IdentArg<'a, L> {
+    type LANG = L;
+    const TYPE_REPR: &'static str = "ident";
+    const HINT: ValueType<'a, L> = ValueType::Ident;
+
+    fn from_arg(
+        _: &mut Context<'a>,
+        _: NodeRef<'a>,
+        value: Value<'a, L>,
+    ) -> Result<Self, Option<String>> {
+        match value {
+            Value::Ident(ident) => Ok(Self::Val(Some(ident))),
+            _ => Err(None),
+        }
+    }
+
+    fn default(_: &mut Context<'a>, _: NodeRef<'a>) -> Self {
+        Self::Val(None)
+    }
+}
+
+#[non_exhaustive]
+pub enum IdentStrArg<'a, L> {
+    Val(Option<&'a str>),
+    __(Infallible, PhantomData<L>),
+}
+impl<'a, L: AssemblyLanguage<'a>> CoercedArg<'a> for IdentStrArg<'a, L> {
+    type LANG = L;
+    const TYPE_REPR: &'static str = "ident|str";
+    const HINT: ValueType<'a, L> = ValueType::Ident;
+
+    fn from_arg(
+        _: &mut Context<'a>,
+        _: NodeRef<'a>,
+        value: Value<'a, L>,
+    ) -> Result<Self, Option<String>> {
+        match value {
+            Value::Ident(ident) => Ok(Self::Val(Some(ident))),
+            Value::Constant(Constant::Str(AsmStr::Str(str))) => Ok(Self::Val(Some(str))),
+            Value::Constant(Constant::Str(AsmStr::ByteStr(_))) => Err(Some(
+                "byte strings not permitted must be an ordinary string".into(),
+            )),
+            Value::Constant(Constant::Str(AsmStr::CStr(_))) => Err(Some(
+                "c strings not permitted must be an ordinary string".into(),
+            )),
+            _ => Err(None),
+        }
+    }
+
+    fn default(_: &mut Context<'a>, _: NodeRef<'a>) -> Self {
+        Self::Val(None)
+    }
+}
+
+#[non_exhaustive]
+pub enum RawIdentArg<'a, L> {
+    Val(Option<&'a str>),
+    __(Infallible, PhantomData<L>),
+}
+impl<'a, L: AssemblyLanguage<'a>> CoercedArg<'a> for RawIdentArg<'a, L> {
+    type LANG = L;
+    const TYPE_REPR: &'static str = "rident";
+    const HINT: ValueType<'a, L> = ValueType::RawIdent;
+
+    fn from_arg(
+        _: &mut Context<'a>,
+        _: NodeRef<'a>,
+        value: Value<'a, L>,
+    ) -> Result<Self, Option<String>> {
+        match value {
+            Value::Ident(ident) => Ok(Self::Val(Some(ident))),
+            _ => Err(None),
+        }
+    }
+
+    fn default(_: &mut Context<'a>, _: NodeRef<'a>) -> Self {
+        Self::Val(None)
+    }
+}
+
+#[non_exhaustive]
+pub enum RawIdentStrArg<'a, L> {
+    Val(Option<&'a str>),
+    __(Infallible, PhantomData<L>),
+}
+impl<'a, L: AssemblyLanguage<'a>> CoercedArg<'a> for RawIdentStrArg<'a, L> {
+    type LANG = L;
+    const TYPE_REPR: &'static str = "rident|str";
+    const HINT: ValueType<'a, L> = ValueType::RawIdent;
+
+    fn from_arg(
+        _: &mut Context<'a>,
+        _: NodeRef<'a>,
+        value: Value<'a, L>,
+    ) -> Result<Self, Option<String>> {
+        match value {
+            Value::Ident(ident) => Ok(Self::Val(Some(ident))),
+            Value::Constant(Constant::Str(AsmStr::Str(str))) => Ok(Self::Val(Some(str))),
+            Value::Constant(Constant::Str(AsmStr::ByteStr(_))) => Err(Some(
+                "byte strings not permitted must be an ordinary string".into(),
+            )),
+            Value::Constant(Constant::Str(AsmStr::CStr(_))) => Err(Some(
+                "c strings not permitted must be an ordinary string".into(),
+            )),
+            _ => Err(None),
+        }
+    }
+
+    fn default(_: &mut Context<'a>, _: NodeRef<'a>) -> Self {
+        Self::Val(None)
+    }
+}
+
 pub struct RegArg<'a, L: AssemblyLanguage<'a>>(pub Option<L::Reg>);
 impl<'a, L: AssemblyLanguage<'a>> CoercedArg<'a> for RegArg<'a, L> {
     type LANG = L;
@@ -652,10 +770,10 @@ macro_rules! nya {
         0
     };
     (count_min: $v:ident,) => {
-        ($v::OPTIONAL as usize)
+        ((!$v::OPTIONAL) as usize)
     };
     (count_min: $v:ident, $($t:ident),*$(,)?) => {
-        ($v::OPTIONAL as usize)+nya!(count_min: $($t,)*)
+        ((!$v::OPTIONAL) as usize)+nya!(count_min: $($t,)*)
     };
 }
 nya!(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P);

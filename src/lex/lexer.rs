@@ -203,7 +203,6 @@ impl<'a> Iterator for Lexer<'a> {
                 State::Default => match c {
                     Some('\n') => ret = Some(Ok(Token::NewLine)),
 
-                    Some(';') => self.state = State::SingleLine(1),
                     Some('#') => self.state = State::PreProcessorTag,
                     Some('|') => self.state = State::Or,
                     Some('^') => self.state = State::Xor,
@@ -226,6 +225,7 @@ impl<'a> Iterator for Lexer<'a> {
                         self.state = State::CharLiteral { has_escape: false }
                     }
 
+                    Some(';') => ret = Some(Ok(Token::Semicolon)), //self.state = State::SingleLine(1),
                     Some('(') => ret = Some(Ok(Token::LPar)),
                     Some(')') => ret = Some(Ok(Token::RPar)),
                     Some('{') => ret = Some(Ok(Token::LBrace)),

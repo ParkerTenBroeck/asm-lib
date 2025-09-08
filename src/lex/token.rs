@@ -51,6 +51,7 @@ pub enum Token<'a> {
     XorEq,
     ShiftRightEq,
     ShiftLeftEq,
+    Semicolon,
 
     PreProcessorTag(&'a str),
     Label(&'a str),
@@ -79,6 +80,7 @@ impl<'a> Display for Token<'a> {
             Token::Minus => write!(f, "'-'"),
             Token::Star => write!(f, "'*'"),
             Token::Slash => write!(f, "'/'"),
+            Token::Semicolon => write!(f, "';'"),
             Token::Ampersand => write!(f, "'&'"),
             Token::BitwiseOr => write!(f, "'|'"),
             Token::BitwiseXor => write!(f, "'^'"),

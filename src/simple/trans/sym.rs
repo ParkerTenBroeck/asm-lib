@@ -152,7 +152,11 @@ impl<T: PrimInt> Symbols<T> {
         }
     }
 
-    pub fn resolve(&mut self, name: StrIdx) -> SymbolIdx {
+     pub fn resolve(&mut self, name: StrIdx) -> Option<SymbolIdx> {
+        self.symbol_map.get(&name).copied()
+    }
+
+    pub fn resolve_or_make(&mut self, name: StrIdx) -> SymbolIdx {
         if let Some(symbol_idx) = self.symbol_map.get(&name).copied() {
             symbol_idx
         } else {

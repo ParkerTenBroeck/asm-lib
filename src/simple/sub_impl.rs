@@ -89,12 +89,11 @@ pub trait SimpleAssemblyLanguageBase<'a>: SimpleAssemblyLanguage<'a> {
         align: Self::Uptr,
         node: NodeRef<'a>,
     ) {
-        let section = self.state_mut().expect_section(ctx.context, node);
-        let node = ctx.context.node_to_owned(node);
-        self.state_mut()
-            .trans
-            .resolve_mut(section)
-            .data(data, align, Some(node));
+        self.current_section_mut(ctx, node).data(
+            data,
+            align,
+            Some(ctx.context.node_to_owned(node)),
+        );
     }
 
     fn add_space_data(
@@ -104,12 +103,11 @@ pub trait SimpleAssemblyLanguageBase<'a>: SimpleAssemblyLanguage<'a> {
         align: Self::Uptr,
         node: NodeRef<'a>,
     ) {
-        let section = self.state_mut().expect_section(ctx.context, node);
-        let node = ctx.context.node_to_owned(node);
-        self.state_mut()
-            .trans
-            .resolve_mut(section)
-            .space(space, align, Some(node));
+        self.current_section_mut(ctx, node).space(
+            space,
+            align,
+            Some(ctx.context.node_to_owned(node)),
+        );
     }
 
     fn set_section(&mut self, _: &mut LangCtx<'a, '_, Self>, section: &'a str, _: NodeRef<'a>) {

@@ -105,16 +105,7 @@ impl<T: TranslationUnitMachine> TranslationUnit<T> {
         let section = self.resolve_or_make(name);
         self.get_mut(section)
     }
-}
 
-pub struct SectionMut<'a, T: TranslationUnitMachine> {
-    section: &'a mut Section<T>,
-    section_idx: SectionIdx,
-    symbols: &'a mut Symbols<T::PtrSizeType>,
-    str_table: &'a mut StringTable,
-}
-
-impl<'a, T: TranslationUnitMachine> SectionMut<'a, T> {
     fn sym_checked(
         &mut self,
         name: &str,
@@ -122,7 +113,7 @@ impl<'a, T: TranslationUnitMachine> SectionMut<'a, T> {
         node_kind: impl Fn(&mut SymbolDbg) -> &mut Option<NodeOwned>,
         err: impl FnOnce(Option<NodeOwned>) -> SymbolError,
     ) -> Result<&mut Symbol<T::PtrSizeType>, SymbolError> {
-        let symbol_idx = self.symbols.resolve(self.str_table.resolve(name));
+        let symbol_idx = self.symbols.resolve_or_make(self.str_table.resolve(name));
 
         let mut dbg = self.symbols.symbol_dbg_entry(symbol_idx);
         if let Entry::Occupied(entry) = &mut dbg
@@ -136,8 +127,16 @@ impl<'a, T: TranslationUnitMachine> SectionMut<'a, T> {
         Ok(self.symbols.symbol(symbol_idx))
     }
 
-    pub fn symbol(&mut self, name: &str) -> SymbolIdx {
+    pub fn resolve_or_make_symbol(&mut self, name: &str) -> SymbolIdx {
+        self.symbols.resolve_or_make(self.str_table.resolve(name))
+    }
+
+    pub fn resolve_symbol(&mut self, name: &str) -> Option<SymbolIdx> {
         self.symbols.resolve(self.str_table.resolve(name))
+    }
+
+    pub fn get_symbol(&mut self, symbol_idx: SymbolIdx) -> &mut Symbol<T::PtrSizeType>{
+        self.symbols.symbol(symbol_idx)
     }
 
     pub fn set_symbol_ty(
@@ -188,9 +187,14 @@ impl<'a, T: TranslationUnitMachine> SectionMut<'a, T> {
         Ok(())
     }
 
-    pub fn bind_symbol(&mut self, name: &str, node: Option<NodeOwned>) -> Result<(), SymbolError> {
-        let section_idx = self.section_idx;
-        let current_offset = self.section.data.current_offset();
+    pub fn bind_symbol(
+        &mut self,
+        name: &str,
+        section: &str,
+        node: Option<NodeOwned>,
+    ) -> Result<(), SymbolError> {
+        let section_idx = self.resolve_or_make(section);
+        let current_offset = self.get(section_idx).data.current_offset();
         let symbol = self.sym_checked(
             name,
             node,
@@ -207,7 +211,16 @@ impl<'a, T: TranslationUnitMachine> SectionMut<'a, T> {
         }
         Ok(())
     }
+}
 
+pub struct SectionMut<'a, T: TranslationUnitMachine> {
+    section: &'a mut Section<T>,
+    section_idx: SectionIdx,
+    symbols: &'a mut Symbols<T::PtrSizeType>,
+    str_table: &'a mut StringTable,
+}
+
+impl<'a, T: TranslationUnitMachine> SectionMut<'a, T> {
     pub fn reloc(&mut self, reloc: T::Reloc, node: Option<NodeOwned>) -> RelocIdx {
         let reloc = self.section.relocations.emit(reloc);
         if let Some(node) = node {

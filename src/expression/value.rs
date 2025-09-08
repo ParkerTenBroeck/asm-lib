@@ -63,6 +63,9 @@ pub enum ValueType<'a, L: AssemblyLanguage<'a>> {
     Cstr,
     Bstr,
 
+    Ident,
+    RawIdent,
+
     Indexed,
     Register,
 
@@ -161,35 +164,8 @@ where
 {
     fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
         match self {
-            ValueType::Any => f.write_str("any"),
-            ValueType::Str => f.write_str("str"),
-            ValueType::Cstr => f.write_str("cstr"),
-            ValueType::Bstr => f.write_str("cstr"),
-            ValueType::Indexed => f.write_str("indexed"),
-            ValueType::Register => f.write_str("register"),
-            ValueType::Label => f.write_str("label"),
-            ValueType::I8 => f.write_str("i8"),
-            ValueType::I16 => f.write_str("i16"),
-            ValueType::I32 => f.write_str("i32"),
-            ValueType::I64 => f.write_str("i64"),
-            ValueType::I128 => f.write_str("i128"),
-            ValueType::Isize => f.write_str("isize"),
-            ValueType::Iptr => f.write_str("iptr"),
-            ValueType::Ifunc => f.write_str("ifunc"),
-            ValueType::U8 => f.write_str("u8"),
-            ValueType::U16 => f.write_str("u16"),
-            ValueType::U32 => f.write_str("u32"),
-            ValueType::U64 => f.write_str("u64"),
-            ValueType::U128 => f.write_str("u128"),
-            ValueType::Usize => f.write_str("usize"),
-            ValueType::Uptr => f.write_str("uptr"),
-            ValueType::Ufunc => f.write_str("ufunc"),
-            ValueType::F32 => f.write_str("f32"),
-            ValueType::F64 => f.write_str("f64"),
-            ValueType::Bool => f.write_str("bool"),
-            ValueType::Char => f.write_str("char"),
-            ValueType::Type => f.write_str("type"),
             ValueType::Custom(f0) => f.debug_tuple("custom").field(&f0).finish(),
+            _ => <Self as std::fmt::Display>::fmt(self, f),
         }
     }
 }
@@ -197,35 +173,8 @@ where
 impl<'a, L: AssemblyLanguage<'a>> core::cmp::PartialEq for ValueType<'a, L> {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
-            (ValueType::Any, ValueType::Any) => true,
-            (ValueType::Str, ValueType::Str) => true,
-            (ValueType::Cstr, ValueType::Cstr) => true,
-            (ValueType::Bstr, ValueType::Bstr) => true,
-            (ValueType::Indexed, ValueType::Indexed) => true,
-            (ValueType::Register, ValueType::Register) => true,
-            (ValueType::Label, ValueType::Label) => true,
-            (ValueType::I8, ValueType::I8) => true,
-            (ValueType::I16, ValueType::I16) => true,
-            (ValueType::I32, ValueType::I32) => true,
-            (ValueType::I64, ValueType::I64) => true,
-            (ValueType::I128, ValueType::I128) => true,
-            (ValueType::Isize, ValueType::Isize) => true,
-            (ValueType::Iptr, ValueType::Iptr) => true,
-            (ValueType::Ifunc, ValueType::Ifunc) => true,
-            (ValueType::U8, ValueType::U8) => true,
-            (ValueType::U16, ValueType::U16) => true,
-            (ValueType::U32, ValueType::U32) => true,
-            (ValueType::U64, ValueType::U64) => true,
-            (ValueType::U128, ValueType::U128) => true,
-            (ValueType::Usize, ValueType::Usize) => true,
-            (ValueType::Uptr, ValueType::Uptr) => true,
-            (ValueType::Ufunc, ValueType::Ufunc) => true,
-            (ValueType::F32, ValueType::F32) => true,
-            (ValueType::F64, ValueType::F64) => true,
-            (ValueType::Bool, ValueType::Bool) => true,
-            (ValueType::Char, ValueType::Char) => true,
-            (ValueType::Custom(f0_self), ValueType::Custom(f0_other)) => f0_self.eq(f0_other),
-            _unused => false,
+            (Self::Custom(l0), Self::Custom(r0)) => l0 == r0,
+            _ => core::mem::discriminant(self) == core::mem::discriminant(other),
         }
     }
 }
@@ -269,6 +218,8 @@ impl<'a, L: AssemblyLanguage<'a>> std::fmt::Display for ValueType<'a, L> {
             ValueType::Bool => write!(f, "bool"),
             ValueType::Char => write!(f, "char"),
             ValueType::Type => write!(f, "type"),
+            ValueType::Ident => write!(f, "ident"),
+            ValueType::RawIdent => write!(f, "rident"),
             ValueType::Custom(custom) => write!(f, "{custom}"),
         }
     }
@@ -305,6 +256,8 @@ impl<'a, L: AssemblyLanguage<'a>> ValueType<'a, L> {
             ValueType::F64 => Value::Constant(Constant::F64(0.0)),
             ValueType::Bool => Value::Constant(Constant::Bool(false)),
             ValueType::Char => Value::Constant(Constant::Char('\0')),
+            ValueType::Ident => Value::Ident(""),
+            ValueType::RawIdent => Value::Ident(""),
             ValueType::Custom(c) => Value::Custom(c.default_value()),
         }
     }
@@ -372,6 +325,7 @@ pub enum Value<'a, L: AssemblyLanguage<'a>> {
     Register(L::Reg),
     Custom(L::CustomValue),
     Type(ValueType<'a, L>),
+    Ident(&'a str),
 }
 
 impl<'a, L> core::fmt::Debug for Value<'a, L>
@@ -390,6 +344,7 @@ where
             Value::Register(f0) => f.debug_tuple("Register").field(&f0).finish(),
             Value::Custom(f0) => f.debug_tuple("Custom").field(&f0).finish(),
             Value::Type(f0) => f.debug_tuple("Type").field(&f0).finish(),
+            Value::Ident(ident) => f.debug_tuple("Ident").field(&ident).finish(),
         }
     }
 }
@@ -402,6 +357,7 @@ impl<'a, L: AssemblyLanguage<'a>> core::cmp::PartialEq for Value<'a, L> {
             (Value::Indexed(f0_self), Value::Indexed(f0_other)) => f0_self.eq(f0_other),
             (Value::Register(f0_self), Value::Register(f0_other)) => f0_self.eq(f0_other),
             (Value::Type(f0_self), Value::Type(f0_other)) => f0_self.eq(f0_other),
+            (Value::Ident(f0_self), Value::Ident(f0_other)) => f0_self.eq(f0_other),
             _unused => false,
         }
     }
@@ -424,6 +380,7 @@ impl<'a, L: AssemblyLanguage<'a>> std::fmt::Display for Value<'a, L> {
             Value::Register(reg) => write!(f, "{reg}"),
             Value::Custom(custom) => write!(f, "{custom}"),
             Value::Type(ty) => write!(f, "{ty}"),
+            Value::Ident(ident) => write!(f, "{ident}"),
         }
     }
 }
@@ -437,6 +394,7 @@ impl<'a, L: AssemblyLanguage<'a>> Value<'a, L> {
             Value::Register(_) => ValueType::Register,
             Value::Custom(c) => ValueType::Custom(c.get_type()),
             Value::Type(_) => ValueType::Type,
+            Value::Ident(_) => ValueType::Ident,
         }
     }
 
@@ -448,6 +406,7 @@ impl<'a, L: AssemblyLanguage<'a>> Value<'a, L> {
             Value::Register(_) => None,
             Value::Custom(c) => c.get_size(),
             Value::Type(ty) => ty.get_size(),
+            Value::Ident(_) => None,
         }
     }
 
@@ -459,6 +418,7 @@ impl<'a, L: AssemblyLanguage<'a>> Value<'a, L> {
             Value::Register(_) => None,
             Value::Custom(c) => c.get_align(),
             Value::Type(ty) => ty.get_align(),
+            Value::Ident(_) => None,
         }
     }
 
@@ -747,6 +707,8 @@ impl<'a, L: AssemblyLanguage<'a>> ValueType<'a, L> {
             ValueType::Char => false,
             ValueType::Custom(_) => false,
             ValueType::Type => false,
+            ValueType::Ident => false,
+            ValueType::RawIdent => false,
         }
     }
     pub fn numeric_suffix(&self) -> Option<&'static str> {
@@ -780,6 +742,8 @@ impl<'a, L: AssemblyLanguage<'a>> ValueType<'a, L> {
             ValueType::Char => None,
             ValueType::Custom(_) => None,
             ValueType::Type => None,
+            ValueType::Ident => None,
+            ValueType::RawIdent => None,
         }
     }
 }

@@ -14,16 +14,31 @@ pub type NodeVal<'a> = assembler::expression::NodeVal<'a, MipsAssembler<'a>>;
 
 pub fn main() {
     let src = r#"
+.text
 
-    .text
+_start: .global; .type func;
+ 
+        la sp, _stack_start
+        jal main
+    .loop:
+        j .loop
 
-    _start: 
-    add x1,x2,x3
+main:
+    la a0, message
+    li a1, size(message)
 
+    li v0, 1 // print syscall id
+    syscall
+    ret
 
-    .section "stack"
-    .align 1<<12
-    .space 1<<12
+    .size; .type func
+
+.rodata
+    message: .string "Hello, World!"; .size; .type obj; .global
+
+.section .stack 
+    _stack_end: .global; .align 1<<12; .space 1<<12
+    _stack_start: .size 1<<12; .global
     "#;
     let res = assembler::assemble(
         &Default::default(),

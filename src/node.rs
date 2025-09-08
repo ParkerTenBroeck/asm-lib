@@ -26,8 +26,8 @@ impl<'a> std::fmt::Display for NodeInfoRef<'a> {
             f,
             "{}:{}:{}",
             top.source().path().display(),
+            top.span().line as usize + 1,
             top.span().col as usize + 1,
-            top.span().line as usize + 1
         )
     }
 }
@@ -39,8 +39,8 @@ impl std::fmt::Display for NodeInfoOwned {
             f,
             "{}:{}:{}",
             top.source.path().display(),
+            top.span.line as usize + 1,
             top.span.col as usize + 1,
-            top.span.line as usize + 1
         )
     }
 }
