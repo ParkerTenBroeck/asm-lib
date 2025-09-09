@@ -1,13 +1,13 @@
 pub const fn rs(reg: u32) -> u32 {
-    (reg & 0b11111) << (5 + 5 + 5 + 6)
+    (reg & 0b11111) << 21
 }
 
 pub const fn rt(reg: u32) -> u32 {
-    (reg & 0b11111) << (5 + 5 + 6)
+    (reg & 0b11111) << 16
 }
 
 pub const fn rd(reg: u32) -> u32 {
-    (reg & 0b11111) << (5 + 6)
+    (reg & 0b11111) << 11
 }
 
 pub const fn opcode(op: u32) -> u32 {

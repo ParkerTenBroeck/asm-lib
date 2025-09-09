@@ -47,7 +47,6 @@ impl<'a> CoercedArg<'a> for Immediate<'a> {
     }
 }
 
-
 pub enum ImmediateU16<'a> {
     Constant(u16),
     Label(LabelExpr<'a>),

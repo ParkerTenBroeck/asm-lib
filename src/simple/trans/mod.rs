@@ -25,9 +25,17 @@ pub struct SectionIdx(NonZeroUsize);
 pub trait TranslationUnitMachine {
     type Reloc: Reloc;
     type PtrSizeType: PrimInt + std::fmt::Debug + std::fmt::LowerHex;
+
+    fn fmt_section_disassembly(
+        section: &Section<Self>,
+        trans: &TranslationUnit<Self>,
+        f: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
+        display::fmt_section_hex(section, trans, f)
+    }
 }
 
-pub struct TranslationUnit<T: TranslationUnitMachine> {
+pub struct TranslationUnit<T: TranslationUnitMachine + ?Sized> {
     sections: Vec<Section<T>>,
     section_map: HashMap<StrIdx, SectionIdx>,
     symbols: Symbols<T::PtrSizeType>,
@@ -77,13 +85,22 @@ impl<T: TranslationUnitMachine> TranslationUnit<T> {
     }
 
     pub fn resolve_or_make(&mut self, name: &str) -> SectionIdx {
-        let name = self.str_table.resolve(name);
-        if let Some(idx) = self.section_map.get(&name) {
+        let name_idx = self.str_table.resolve(name);
+        if let Some(idx) = self.section_map.get(&name_idx) {
             return *idx;
         }
-        self.sections.push(Section::new(name));
+        let mut section = Section::new(name_idx);
+        match name {
+            ".text" => section.executable = true,
+            ".bss" => section.writeable = true,
+            ".data" => section.writeable = true,
+            ".common" => section.writeable = true,
+            ".rodata" => {}
+            _ => section.writeable = true,
+        }
+        self.sections.push(section);
         let idx = SectionIdx(NonZeroUsize::new(self.sections.len()).unwrap());
-        self.section_map.insert(name, idx);
+        self.section_map.insert(name_idx, idx);
         idx
     }
 

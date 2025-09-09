@@ -148,47 +148,47 @@ impl<'a> MipsAssembler<'a> {
         );
     }
 
-    fn i_type_rd_rs_sign(
+    fn i_type_rt_rs_sign(
         &mut self,
         ctx: &mut assembler::LangCtx<'a, '_, Self>,
         node: assembler::NodeRef<'a>,
         opcode: Opcodes,
     ) {
-       let Node((RegArg(rd), RegArg(rs), imm), node) = ctx.eval(self).coerced(node);
-        let imm = match imm{
+        let Node((RegArg(rt), RegArg(rs), imm), node) = ctx.eval(self).coerced(node);
+        let imm = match imm {
             ImmediateI16::Constant(v) => v as u32,
-            ImmediateI16::Label(l) => self.immediate(ctx, node, LabelKind::ArithSigned, Immediate::Label(l)).0 
+            ImmediateI16::Label(l) => {
+                self.immediate(ctx, node, LabelKind::ArithSigned, Immediate::Label(l))
+                    .0
+            }
         };
 
         self.instruction(
             ctx,
             node,
-            opcode as u32
-                + rd.unwrap_or_default().rd()
-                + rs.unwrap_or_default().rs()
-                + imm_16(imm),
+            opcode as u32 + rs.unwrap_or_default().rs() + rt.unwrap_or_default().rt() + imm_16(imm),
         );
     }
 
-    fn i_type_rd_rs_unsign(
+    fn i_type_rt_rs_unsign(
         &mut self,
         ctx: &mut assembler::LangCtx<'a, '_, Self>,
         node: assembler::NodeRef<'a>,
         opcode: Opcodes,
     ) {
-        let Node((RegArg(rd), RegArg(rs), imm), node) = ctx.eval(self).coerced(node);
-        let imm = match imm{
+        let Node((RegArg(rt), RegArg(rs), imm), node) = ctx.eval(self).coerced(node);
+        let imm = match imm {
             ImmediateU16::Constant(v) => v as u32,
-            ImmediateU16::Label(l) => self.immediate(ctx, node, LabelKind::ArithUnsigned, Immediate::Label(l)).0 
+            ImmediateU16::Label(l) => {
+                self.immediate(ctx, node, LabelKind::ArithUnsigned, Immediate::Label(l))
+                    .0
+            }
         };
 
         self.instruction(
             ctx,
             node,
-            opcode as u32
-                + rd.unwrap_or_default().rd()
-                + rs.unwrap_or_default().rs()
-                + imm_16(imm),
+            opcode as u32 + rs.unwrap_or_default().rs() + rt.unwrap_or_default().rt() + imm_16(imm),
         );
     }
 
@@ -202,6 +202,38 @@ impl<'a> MipsAssembler<'a> {
         let Node(immediate, node) = ctx.eval(self).coerced(node);
         let (imm, _) = self.immediate(ctx, node, kind, immediate);
         self.instruction(ctx, node, opcode as u32 + imm_16(imm));
+    }
+
+    fn i_type_rt(
+        &mut self,
+        ctx: &mut assembler::LangCtx<'a, '_, Self>,
+        node: assembler::NodeRef<'a>,
+        kind: LabelKind,
+        opcode: Opcodes,
+    ) {
+        let Node((RegArg(rt), immediate), node) = ctx.eval(self).coerced(node);
+        let (imm, _) = self.immediate(ctx, node, kind, immediate);
+        self.instruction(
+            ctx,
+            node,
+            opcode as u32 + rt.unwrap_or_default().rt() + imm_16(imm),
+        );
+    }
+
+    fn i_type_rt_rs(
+        &mut self,
+        ctx: &mut assembler::LangCtx<'a, '_, Self>,
+        node: assembler::NodeRef<'a>,
+        kind: LabelKind,
+        opcode: Opcodes,
+    ) {
+        let Node((RegArg(rt), RegArg(rs), immediate), node) = ctx.eval(self).coerced(node);
+        let (imm, _) = self.immediate(ctx, node, kind, immediate);
+        self.instruction(
+            ctx,
+            node,
+            opcode as u32 + rs.unwrap_or_default().rs() + rt.unwrap_or_default().rt() + imm_16(imm),
+        );
     }
 
     fn i_type_rs_rt(
@@ -220,59 +252,20 @@ impl<'a> MipsAssembler<'a> {
         );
     }
 
-    fn i_type_rd(
-        &mut self,
-        ctx: &mut assembler::LangCtx<'a, '_, Self>,
-        node: assembler::NodeRef<'a>,
-        kind: LabelKind,
-        opcode: Opcodes,
-    ) {
-        let Node((RegArg(rd), immediate), node) = ctx.eval(self).coerced(node);
-        let (imm, _) = self.immediate(ctx, node, kind, immediate);
-        self.instruction(ctx, node, opcode as u32 + rd.unwrap_or_default().rd() + imm_16(imm));
-    }
-
-    fn i_type_rs(
-        &mut self,
-        ctx: &mut assembler::LangCtx<'a, '_, Self>,
-        node: assembler::NodeRef<'a>,
-        kind: LabelKind,
-        opcode: Opcodes,
-    ) {
-        let Node((RegArg(rs), immediate), node) = ctx.eval(self).coerced(node);
-        let (imm, _) = self.immediate(ctx, node, kind, immediate);
-        self.instruction(ctx, node, opcode as u32 + rs.unwrap_or_default().rs() + imm_16(imm));
-    }
-
-    fn i_type_rs_rt_idx(
+    fn i_type_rt_rs_idx(
         &mut self,
         ctx: &mut LangCtx<'a, '_, Self>,
         node: NodeRef<'a>,
         kind: LabelKind,
         opcode: Opcodes,
     ) {
-        let Node((RegArg(rs), RegArg(rt), IndexedArg(indexed)), node) = ctx.eval(self).coerced(node);
+        let Node((RegArg(rt), RegArg(rs), IndexedArg(indexed)), node) =
+            ctx.eval(self).coerced(node);
         let (imm, _) = self.indexed(ctx, node, kind, indexed.unwrap_or_default());
         self.instruction(
             ctx,
             node,
             opcode as u32 + rs.unwrap_or_default().rs() + rt.unwrap_or_default().rt() + imm_16(imm),
-        );
-    }
-
-    fn i_type_rd_rs_idx(
-        &mut self,
-        ctx: &mut assembler::LangCtx<'a, '_, Self>,
-        node: assembler::NodeRef<'a>,
-        kind: LabelKind,
-        opcode: Opcodes,
-    ) {
-        let Node((RegArg(rd), RegArg(rs), IndexedArg(indexed)), node) = ctx.eval(self).coerced(node);
-        let (imm, _) = self.indexed(ctx, node, kind, indexed.unwrap_or_default());
-        self.instruction(
-            ctx,
-            node,
-            opcode as u32 + rd.unwrap_or_default().rd() + rs.unwrap_or_default().rs() + imm_16(imm),
         );
     }
 
@@ -317,34 +310,32 @@ impl<'a> MipsAssembler<'a> {
         kind: LabelKind,
         immediate: Immediate<'a>,
     ) -> (u32, Register) {
-        match kind{
+        match kind {
             LabelKind::IdxSaveMem => todo!(),
             LabelKind::IdxLoadMem => todo!(),
             LabelKind::Branch => todo!(),
             LabelKind::Lui => todo!(),
             LabelKind::ArithSigned => todo!(),
             LabelKind::ArithUnsigned => todo!(),
-            LabelKind::Jump => {
-                match immediate {
-                    Immediate::Label(l) => {
-                        self.current_section_mut(ctx, node)
-                            .reloc(MipsReloc {}, Some(ctx.context.node_to_owned(node)));
-                        (0, Register::default())
-                    }
-                    Immediate::SignedConstant(v) => {
-                        if v.is_negative() {
-                            ctx.context
-                                .report_warning(node, "negative constant used in jump instruction");
-                        }
-                        (v as u32, Register::default())
-                    }
-                    Immediate::UnsignedConstant(v) if v>0x3FFFFFF  => {
-                        ctx.context
-                                .report_warning(node, "constant cannot fit in 26 bits");
-                        (v, Register::default())
-                    },
-                    Immediate::UnsignedConstant(v) => (v, Register::default()),
+            LabelKind::Jump => match immediate {
+                Immediate::Label(l) => {
+                    self.current_section_mut(ctx, node)
+                        .reloc(MipsReloc {}, Some(ctx.context.node_to_owned(node)));
+                    (0, Register::default())
                 }
+                Immediate::SignedConstant(v) => {
+                    if v.is_negative() {
+                        ctx.context
+                            .report_warning(node, "negative constant used in jump instruction");
+                    }
+                    (v as u32, Register::default())
+                }
+                Immediate::UnsignedConstant(v) if v > 0x3FFFFFF => {
+                    ctx.context
+                        .report_warning(node, "constant cannot fit in 26 bits");
+                    (v, Register::default())
+                }
+                Immediate::UnsignedConstant(v) => (v, Register::default()),
             },
         }
     }
@@ -416,44 +407,44 @@ impl<'a> SimpleAssemblyLanguage<'a> for MipsAssembler<'a> {
             "div" => self.r_type_rs_rt(ctx, node, Opcodes::Div),
             "divu" => self.r_type_rs_rt(ctx, node, Opcodes::Divu),
 
-            "addi" => self.i_type_rd_rs_sign(ctx, node, Opcodes::Addi),
-            "addiu" => self.i_type_rd_rs_sign(ctx, node, Opcodes::Addiu),
-            "ori" => self.i_type_rd_rs_unsign(ctx, node, Opcodes::Ori),
-            "xori" => self.i_type_rd_rs_unsign(ctx, node, Opcodes::Xori),
-            "andi" => self.i_type_rd_rs_unsign(ctx, node, Opcodes::Andi),
+            "addi" => self.i_type_rt_rs_sign(ctx, node, Opcodes::Addi),
+            "addiu" => self.i_type_rt_rs_sign(ctx, node, Opcodes::Addiu),
+            "ori" => self.i_type_rt_rs_unsign(ctx, node, Opcodes::Ori),
+            "xori" => self.i_type_rt_rs_unsign(ctx, node, Opcodes::Xori),
+            "andi" => self.i_type_rt_rs_unsign(ctx, node, Opcodes::Andi),
 
-            "slit" => self.i_type_rd_rs_sign(ctx, node, Opcodes::Slti),
-            "sltiu" => self.i_type_rd_rs_unsign(ctx, node, Opcodes::Sltiu),
+            "slit" => self.i_type_rt_rs_sign(ctx, node, Opcodes::Slti),
+            "sltiu" => self.i_type_rt_rs_unsign(ctx, node, Opcodes::Sltiu),
 
-            "lb" => self.i_type_rd_rs_idx(ctx, node, LabelKind::IdxLoadMem, Opcodes::Lb),
-            "lbu" => self.i_type_rd_rs_idx(ctx, node,LabelKind::IdxLoadMem,  Opcodes::Lbu),
-            "lh" => self.i_type_rd_rs_idx(ctx, node, LabelKind::IdxLoadMem, Opcodes::Lh),
-            "lhu" => self.i_type_rd_rs_idx(ctx, node,LabelKind::IdxLoadMem,  Opcodes::Lhu),
-            "lw" => self.i_type_rd_rs_idx(ctx, node, LabelKind::IdxLoadMem, Opcodes::Lw),
-            "lwl" => self.i_type_rd_rs_idx(ctx, node,LabelKind::IdxLoadMem,  Opcodes::Lwl),
-            "lwr" => self.i_type_rd_rs_idx(ctx, node,LabelKind::IdxLoadMem,  Opcodes::Lwr),
+            "lb" => self.i_type_rt_rs_idx(ctx, node, LabelKind::IdxLoadMem, Opcodes::Lb),
+            "lbu" => self.i_type_rt_rs_idx(ctx, node, LabelKind::IdxLoadMem, Opcodes::Lbu),
+            "lh" => self.i_type_rt_rs_idx(ctx, node, LabelKind::IdxLoadMem, Opcodes::Lh),
+            "lhu" => self.i_type_rt_rs_idx(ctx, node, LabelKind::IdxLoadMem, Opcodes::Lhu),
+            "lw" => self.i_type_rt_rs_idx(ctx, node, LabelKind::IdxLoadMem, Opcodes::Lw),
+            "lwl" => self.i_type_rt_rs_idx(ctx, node, LabelKind::IdxLoadMem, Opcodes::Lwl),
+            "lwr" => self.i_type_rt_rs_idx(ctx, node, LabelKind::IdxLoadMem, Opcodes::Lwr),
 
-            "sb" => self.i_type_rs_rt_idx(ctx, node, LabelKind::IdxSaveMem, Opcodes::Sb),
-            "sh" => self.i_type_rs_rt_idx(ctx, node, LabelKind::IdxSaveMem, Opcodes::Sh),
-            "sw" => self.i_type_rs_rt_idx(ctx, node, LabelKind::IdxSaveMem, Opcodes::Sw),
-            "swl" => self.i_type_rs_rt_idx(ctx, node, LabelKind::IdxSaveMem, Opcodes::Swl),
-            "swr" => self.i_type_rs_rt_idx(ctx, node, LabelKind::IdxSaveMem, Opcodes::Swr),
+            "sb" => self.i_type_rt_rs_idx(ctx, node, LabelKind::IdxSaveMem, Opcodes::Sb),
+            "sh" => self.i_type_rt_rs_idx(ctx, node, LabelKind::IdxSaveMem, Opcodes::Sh),
+            "sw" => self.i_type_rt_rs_idx(ctx, node, LabelKind::IdxSaveMem, Opcodes::Sw),
+            "swl" => self.i_type_rt_rs_idx(ctx, node, LabelKind::IdxSaveMem, Opcodes::Swl),
+            "swr" => self.i_type_rt_rs_idx(ctx, node, LabelKind::IdxSaveMem, Opcodes::Swr),
 
             "j" => self.j_type(ctx, node, Opcodes::J),
             "jal" => self.j_type(ctx, node, Opcodes::Jal),
             "jalr" => self.r_type_rd_rs(ctx, node, Opcodes::Jalr),
             "jr" => self.r_type_rs(ctx, node, Opcodes::Jr),
 
-            "beq" => self.i_type_rs_rt(ctx, node, LabelKind::Branch, Opcodes::Beq),
-            "bgez" => self.i_type_rs(ctx, node, LabelKind::Branch, Opcodes::Bgez),
-            "bgezal" => self.i_type_rs(ctx, node, LabelKind::Branch, Opcodes::Bgezal),
-            "bgtz" => self.i_type_rs(ctx, node, LabelKind::Branch, Opcodes::Bgtz),
-            "blez" => self.i_type_rs(ctx, node, LabelKind::Branch, Opcodes::Blez),
-            "bltz" => self.i_type_rs(ctx, node, LabelKind::Branch, Opcodes::Bltz),
-            "bltzal" => self.i_type_rs(ctx, node, LabelKind::Branch, Opcodes::Bltzal),
-            "bne" => self.i_type_rs_rt(ctx, node, LabelKind::Branch, Opcodes::Bne),
+            "beq" => self.i_type_rt_rs(ctx, node, LabelKind::Branch, Opcodes::Beq),
+            "bgez" => self.i_type_rt(ctx, node, LabelKind::Branch, Opcodes::Bgez),
+            "bgezal" => self.i_type_rt(ctx, node, LabelKind::Branch, Opcodes::Bgezal),
+            "bgtz" => self.i_type_rt(ctx, node, LabelKind::Branch, Opcodes::Bgtz),
+            "blez" => self.i_type_rt(ctx, node, LabelKind::Branch, Opcodes::Blez),
+            "bltz" => self.i_type_rt(ctx, node, LabelKind::Branch, Opcodes::Bltz),
+            "bltzal" => self.i_type_rt(ctx, node, LabelKind::Branch, Opcodes::Bltzal),
+            "bne" => self.i_type_rt_rs(ctx, node, LabelKind::Branch, Opcodes::Bne),
 
-            "lui" => self.i_type_rd(ctx, node, LabelKind::Lui, Opcodes::Lui),
+            "lui" => self.i_type_rt(ctx, node, LabelKind::Lui, Opcodes::Lui),
 
             "break" => self.no_args(ctx, node, Opcodes::Break as u32),
             "syscall" => self.no_args(ctx, node, Opcodes::Syscall as u32),
@@ -466,8 +457,8 @@ impl<'a> SimpleAssemblyLanguage<'a> for MipsAssembler<'a> {
             "ret" => self.no_args(ctx, node, Opcodes::Jr as u32 + Register(31).rs()),
 
             "b" => self.i_type(ctx, node, LabelKind::Branch, Opcodes::Bgez),
-            "bal" => self.i_type(ctx, node,LabelKind::Branch,  Opcodes::Bgezal),
-            "bnez" => self.i_type_rs(ctx, node, LabelKind::Branch, Opcodes::Bne),
+            "bal" => self.i_type(ctx, node, LabelKind::Branch, Opcodes::Bgezal),
+            "bnez" => self.i_type_rt(ctx, node, LabelKind::Branch, Opcodes::Bne),
 
             "blt" | "ble" | "bgt" | "bge" => {
                 let Node((RegArg(lhs), RegArg(rhs)), node) = ctx.eval(self).coerced(node);
@@ -507,16 +498,88 @@ impl<'a> SimpleAssemblyLanguage<'a> for MipsAssembler<'a> {
             }
 
             "ulw" => {
-                let Node((RegArg(rd), RegArg(rs), IndexedArg(indexed)), node) = ctx.eval(self).coerced(node);
-            },
+                let Node((RegArg(rd), RegArg(rs), IndexedArg(indexed)), node) =
+                    ctx.eval(self).coerced(node);
+            }
             "usw" => {
-                let Node((RegArg(rs), RegArg(rt), IndexedArg(indexed)), node) = ctx.eval(self).coerced(node);
-
-            },
+                let Node((RegArg(rs), RegArg(rt), IndexedArg(indexed)), node) =
+                    ctx.eval(self).coerced(node);
+            }
 
             "la" | "li" => {
-                let Node((RegArg(rd), immediate), node): Node<(_, Immediate)> =
+                let Node((RegArg(rt), immediate), node): Node<(_, Immediate)> =
                     ctx.eval(self).coerced(node);
+
+                match immediate {
+                    Immediate::SignedConstant(signed)
+                        if i16::MIN as i32 <= signed && signed <= i16::MAX as i32 =>
+                    {
+                        self.instruction(
+                            ctx,
+                            node,
+                            Opcodes::Addi as u32
+                                + opcodes::imm_16(signed as u32)
+                                + rt.unwrap_or_default().rt(),
+                        );
+                    }
+                    Immediate::SignedConstant(signed) => {
+                        self.instruction(
+                            ctx,
+                            node,
+                            Opcodes::Lui as u32
+                                + opcodes::imm_16(signed as u32 >> 16)
+                                + rt.unwrap_or_default().rt(),
+                        );
+                        if signed as u16 != 0 {
+                            self.instruction(
+                                ctx,
+                                node,
+                                Opcodes::Ori as u32
+                                    + opcodes::imm_16(signed as u32)
+                                    + rt.unwrap_or_default().rt(),
+                            );
+                        }
+                    }
+                    Immediate::UnsignedConstant(unsigned) if unsigned <= u16::MAX as u32 => {
+                        self.instruction(
+                            ctx,
+                            node,
+                            Opcodes::Ori as u32
+                                + opcodes::imm_16(unsigned)
+                                + rt.unwrap_or_default().rt(),
+                        );
+                    }
+                    Immediate::UnsignedConstant(unsigned) => {
+                        self.instruction(
+                            ctx,
+                            node,
+                            Opcodes::Lui as u32
+                                + opcodes::imm_16(unsigned >> 16)
+                                + rt.unwrap_or_default().rt(),
+                        );
+                        if unsigned as u16 != 0 {
+                            self.instruction(
+                                ctx,
+                                node,
+                                Opcodes::Ori as u32
+                                    + opcodes::imm_16(unsigned)
+                                    + rt.unwrap_or_default().rt(),
+                            );
+                        }
+                    }
+                    Immediate::Label(label_expr) => {
+                        self.instruction(
+                            ctx,
+                            node,
+                            Opcodes::Lui as u32 + rt.unwrap_or_default().rt(),
+                        );
+                        self.instruction(
+                            ctx,
+                            node,
+                            Opcodes::Ori as u32 + rt.unwrap_or_default().rt(),
+                        );
+                    }
+                }
             }
 
             _ => ctx.asm(self).unknown_mnemonic(mnemonic, node),

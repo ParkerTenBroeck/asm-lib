@@ -20,6 +20,10 @@ impl<T: PrimInt> Data<T> {
         }
     }
 
+    pub fn slice(&self) -> &[u8] {
+        &self.data
+    }
+
     pub fn current_offset(&self) -> T {
         NumCast::from(self.data.len()).unwrap()
     }
@@ -45,5 +49,9 @@ impl<T: PrimInt> Data<T> {
         let end = self.data.len();
 
         start..end
+    }
+
+    pub fn align(&self) -> T {
+        self.align
     }
 }

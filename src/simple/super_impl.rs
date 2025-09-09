@@ -199,7 +199,7 @@ impl<'a, T: SimpleAssemblyLanguage<'a>> crate::assembler::lang::AssemblyLanguage
                     match mnemonic {
                         ".global" => trans::sym::SymbolVisibility::Global,
                         ".Weak" => trans::sym::SymbolVisibility::Weak,
-                        ".Local" => trans::sym::SymbolVisibility::Local,
+                        ".local" => trans::sym::SymbolVisibility::Local,
                         _ => unreachable!(),
                     },
                     Some(node_owned.clone()),
