@@ -5,6 +5,7 @@ use assembler::{
 
 use crate::{MipsAssembler, label::LabelExpr};
 
+#[derive(Clone, Copy)]
 pub enum Immediate<'a> {
     SignedConstant(i32),
     UnsignedConstant(u32),

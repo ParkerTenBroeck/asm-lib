@@ -11,6 +11,7 @@ use crate::{MipsAssembler, opcodes::*};
 pub struct Register(pub u8);
 
 impl Register {
+    pub const ZERO: Self = Register(0);
     pub fn rd(&self) -> u32 {
         rd(self.0 as u32)
     }

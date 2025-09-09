@@ -1,5 +1,6 @@
 pub mod args;
 pub mod indexed;
+pub mod instructions;
 pub mod label;
 pub mod lang;
 pub mod opcodes;

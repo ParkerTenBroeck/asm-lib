@@ -11,15 +11,19 @@ pub struct Relocations<T: TranslationUnitMachine + ?Sized> {
     relocs: Vec<(T::PtrSizeType, T::Reloc)>,
 }
 
-impl<T: TranslationUnitMachine + ?Sized> Clone for Relocations<T>{
+impl<T: TranslationUnitMachine + ?Sized> Clone for Relocations<T> {
     fn clone(&self) -> Self {
-        Self { relocs: self.relocs.clone() }
+        Self {
+            relocs: self.relocs.clone(),
+        }
     }
 }
 
-impl<T: TranslationUnitMachine + ?Sized> Debug for Relocations<T>{
+impl<T: TranslationUnitMachine + ?Sized> Debug for Relocations<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Relocations").field("relocs", &self.relocs).finish()
+        f.debug_struct("Relocations")
+            .field("relocs", &self.relocs)
+            .finish()
     }
 }
 
@@ -49,22 +53,29 @@ impl<T: TranslationUnitMachine + ?Sized> Relocations<T> {
 }
 
 impl<T: TranslationUnitMachine<PtrSizeType: Ord> + ?Sized> Relocations<T> {
-    pub fn find_at(&self, offset: T::PtrSizeType) -> impl Iterator<Item = &(T::PtrSizeType, T::Reloc)>{
-        match self.relocs.binary_search_by_key(&offset, |(v,_)|*v){
+    pub fn find_at(
+        &self,
+        offset: T::PtrSizeType,
+    ) -> impl Iterator<Item = &(T::PtrSizeType, T::Reloc)> {
+        match self.relocs.binary_search_by_key(&offset, |(v, _)| *v) {
             Ok(ok) => {
                 let mut start = ok;
-                for (o, _) in self.relocs[..start].iter().rev(){
-                    if *o!=offset{break}
+                for (o, _) in self.relocs[..start].iter().rev() {
+                    if *o != offset {
+                        break;
+                    }
                     start -= 1;
                 }
                 let mut end = ok;
-                for (o, _) in self.relocs[end..].iter(){
-                    if *o!=offset{break}
-                    end -= 1;
+                for (o, _) in self.relocs[end..].iter() {
+                    if *o != offset {
+                        break;
+                    }
+                    end += 1;
                 }
                 self.relocs[start..end].iter()
             }
-            Err(_) => [].iter()
+            Err(_) => [].iter(),
         }
     }
 }

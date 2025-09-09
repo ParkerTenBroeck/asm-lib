@@ -141,7 +141,7 @@ impl<T: TranslationUnitMachine> TranslationUnit<T> {
         if let Some(node) = node {
             *node_kind(dbg.or_default()) = Some(node);
         }
-        Ok(self.symbols.symbol(symbol_idx))
+        Ok(self.symbols.symbol_mut(symbol_idx))
     }
 
     pub fn resolve_or_make_symbol(&mut self, name: &str) -> SymbolIdx {
@@ -152,7 +152,11 @@ impl<T: TranslationUnitMachine> TranslationUnit<T> {
         self.symbols.resolve(self.str_table.resolve(name))
     }
 
-    pub fn get_symbol(&mut self, symbol_idx: SymbolIdx) -> &mut Symbol<T::PtrSizeType> {
+    pub fn get_symbol_mut(&mut self, symbol_idx: SymbolIdx) -> &mut Symbol<T::PtrSizeType> {
+        self.symbols.symbol_mut(symbol_idx)
+    }
+
+    pub fn get_symbol(&self, symbol_idx: SymbolIdx) -> &Symbol<T::PtrSizeType> {
         self.symbols.symbol(symbol_idx)
     }
 
@@ -228,6 +232,10 @@ impl<T: TranslationUnitMachine> TranslationUnit<T> {
         }
         Ok(())
     }
+
+    pub fn get_str(&self, str_idx: StrIdx) -> Option<&str> {
+        self.str_table.get(str_idx)
+    }
 }
 
 pub struct SectionMut<'a, T: TranslationUnitMachine> {
@@ -239,7 +247,10 @@ pub struct SectionMut<'a, T: TranslationUnitMachine> {
 
 impl<'a, T: TranslationUnitMachine> SectionMut<'a, T> {
     pub fn reloc(&mut self, reloc: T::Reloc, node: Option<NodeOwned>) -> RelocIdx {
-        let reloc = self.section.relocations.emit(self.section.data().current_offset(), reloc);
+        let reloc = self
+            .section
+            .relocations
+            .emit(self.section.data().current_offset(), reloc);
         if let Some(node) = node {
             self.section.debug_info.emit_reloc_dbg(reloc, node)
         }

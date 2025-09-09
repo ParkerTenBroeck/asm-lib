@@ -306,7 +306,7 @@ impl<'a, T: SimpleAssemblyLanguage<'a>> crate::assembler::lang::AssemblyLanguage
                         section: Some(section_idx),
                         offset,
                         ..
-                    } = *self.state_mut().trans.get_symbol(symbol)
+                    } = *self.state_mut().trans.get_symbol_mut(symbol)
                     else {
                         ctx.context.report_error(
                             node,

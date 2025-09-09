@@ -1,8 +1,8 @@
 use std::fmt::{Display, Formatter};
 
-use assembler::expression::AssemblyLabel;
+use assembler::{Assembler, expression::AssemblyLabel, simple::SimpleAssemblyLanguage};
 
-use crate::MipsAssembler;
+use crate::{MipsAssembler, trans::MipsRelocCalc};
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum RelocPattern {
@@ -11,7 +11,6 @@ pub enum RelocPattern {
     U8,
     U16,
     U32,
-    U64,
 }
 
 impl std::fmt::Display for RelocPattern {
@@ -22,7 +21,6 @@ impl std::fmt::Display for RelocPattern {
             RelocPattern::U8 => write!(f, "u8"),
             RelocPattern::U16 => write!(f, "u16"),
             RelocPattern::U32 => write!(f, "u32"),
-            RelocPattern::U64 => write!(f, "u64"),
         }
     }
 }
@@ -42,6 +40,40 @@ pub enum LabelExprType<'a> {
     Size(Label<'a>),
     Align(Label<'a>),
     Sub(Label<'a>, Label<'a>),
+}
+impl<'a> LabelExprType<'a> {
+    pub fn reloc_type(
+        &self,
+        ctx: Assembler<'a, '_, MipsAssembler<'a>>,
+        pcrel: bool,
+    ) -> Option<MipsRelocCalc> {
+        let trans = &mut ctx.lang.state_mut().trans;
+        Some(match self {
+            LabelExprType::Empty => None?,
+            LabelExprType::Unspecified(label) if pcrel => {
+                MipsRelocCalc::Pcrel(trans.resolve_or_make_symbol(label.ident))
+            }
+            LabelExprType::Unspecified(label) => {
+                MipsRelocCalc::Absolute(trans.resolve_or_make_symbol(label.ident))
+            }
+            LabelExprType::PcRel(label) => {
+                MipsRelocCalc::Absolute(trans.resolve_or_make_symbol(label.ident))
+            }
+            LabelExprType::Absolute(label) => {
+                MipsRelocCalc::Pcrel(trans.resolve_or_make_symbol(label.ident))
+            }
+            LabelExprType::Size(label) => {
+                MipsRelocCalc::Size(trans.resolve_or_make_symbol(label.ident))
+            }
+            LabelExprType::Align(label) => {
+                MipsRelocCalc::Align(trans.resolve_or_make_symbol(label.ident))
+            }
+            LabelExprType::Sub(lhs, rhs) => MipsRelocCalc::Sub(
+                trans.resolve_or_make_symbol(lhs.ident),
+                trans.resolve_or_make_symbol(rhs.ident),
+            ),
+        })
+    }
 }
 
 #[derive(Debug, Default, Clone, Copy, Eq, PartialEq)]

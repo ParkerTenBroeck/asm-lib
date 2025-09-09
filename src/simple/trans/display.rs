@@ -1,6 +1,6 @@
 use crate::{
     ansi::{self, *},
-    simple::trans::reloc::{Reloc, Relocations},
+    simple::trans::reloc::Relocations,
 };
 use num_traits::PrimInt;
 use std::fmt::{Formatter, LowerHex, Write};
@@ -227,6 +227,19 @@ impl<T: PrimInt + LowerHex> Symbols<T> {
     }
 }
 
+pub fn list<T>(list: &[T], f: &mut std::fmt::Formatter<'_>, header: impl std::fmt::Display, mut disp: impl FnMut(&T, Indent<&mut std::fmt::Formatter<'_>>) -> std::fmt::Result) -> std::fmt::Result{
+    let max_int_length = list.len().checked_ilog10().map(|v| v as usize + 1).unwrap_or(0);
+
+    writeln!(f, "{: >max_int_length$} ", header)?;
+
+    for (idx, item) in list.iter().enumerate(){
+            write!(f, "{: >max_int_length$}: ", idx)?;
+            disp(item, Indent::new_middle(f, max_int_length))?;
+            writeln!(f)?;
+    }
+    Ok(())
+}
+
 pub struct Indent<O: Write> {
     out: O,
     indent: usize,
@@ -262,5 +275,35 @@ impl<O: Write> std::fmt::Write for Indent<O> {
             self.nl = nl.ends_with('\n');
         }
         Ok(())
+    }
+}
+
+pub struct RightPad<O: Write> {
+    out: O,
+    pad: usize,
+    current: usize,
+}
+
+impl<O: Write> RightPad<O> {
+    pub fn new(out: O, pad: usize) -> Self {
+        Self {
+            out,
+            pad,
+            current: 0,
+        }
+    }
+}
+
+impl<O: Write> std::fmt::Write for RightPad<O> {
+    fn write_str(&mut self, s: &str) -> std::fmt::Result {
+        self.current += s.chars().count();
+        self.out.write_str(s)
+    }
+}
+
+impl<O: Write> Drop for RightPad<O> {
+    fn drop(&mut self) {
+        let pad = self.pad.saturating_sub(self.current);
+        write!(self.out, "{: <pad$}", "").unwrap();
     }
 }

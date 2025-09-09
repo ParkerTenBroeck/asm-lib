@@ -167,8 +167,12 @@ impl<T: PrimInt> Symbols<T> {
         }
     }
 
-    pub fn symbol(&mut self, symbol_idx: SymbolIdx) -> &mut Symbol<T> {
+    pub fn symbol_mut(&mut self, symbol_idx: SymbolIdx) -> &mut Symbol<T> {
         self.symbols.get_mut(symbol_idx.0).unwrap()
+    }
+
+    pub fn symbol(&self, symbol_idx: SymbolIdx) -> &Symbol<T> {
+        self.symbols.get(symbol_idx.0).unwrap()
     }
 
     pub fn reset_locals(&mut self) {
