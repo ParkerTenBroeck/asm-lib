@@ -8,7 +8,7 @@ pub struct Section<T: TranslationUnitMachine + ?Sized> {
     pub executable: bool,
     pub writeable: bool,
     pub(crate) data: Data<T::PtrSizeType>,
-    pub(crate) relocations: Relocations<T::Reloc>,
+    pub(crate) relocations: Relocations<T>,
     pub(crate) debug_info: DebugInfo,
 }
 
@@ -61,7 +61,7 @@ impl<T: TranslationUnitMachine> Section<T> {
         &self.data
     }
 
-    pub fn relocations(&self) -> &Relocations<T::Reloc> {
+    pub fn relocations(&self) -> &Relocations<T> {
         &self.relocations
     }
 

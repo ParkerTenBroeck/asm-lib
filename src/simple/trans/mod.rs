@@ -239,7 +239,7 @@ pub struct SectionMut<'a, T: TranslationUnitMachine> {
 
 impl<'a, T: TranslationUnitMachine> SectionMut<'a, T> {
     pub fn reloc(&mut self, reloc: T::Reloc, node: Option<NodeOwned>) -> RelocIdx {
-        let reloc = self.section.relocations.emit(reloc);
+        let reloc = self.section.relocations.emit(self.section.data().current_offset(), reloc);
         if let Some(node) = node {
             self.section.debug_info.emit_reloc_dbg(reloc, node)
         }

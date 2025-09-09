@@ -106,11 +106,11 @@ pub fn fmt_section_hex<T: TranslationUnitMachine<PtrSizeType: LowerHex> + ?Sized
     Ok(())
 }
 
-impl<T: Reloc> Relocations<T> {
-    pub fn fmt<M: super::TranslationUnitMachine<Reloc = T> + ?Sized>(
+impl<T: TranslationUnitMachine + ?Sized> Relocations<T> {
+    pub fn fmt(
         &self,
         f: &mut std::fmt::Formatter<'_>,
-        trans: &super::TranslationUnit<M>,
+        trans: &super::TranslationUnit<T>,
     ) -> std::fmt::Result {
         Ok(())
     }

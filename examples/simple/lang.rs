@@ -236,22 +236,6 @@ impl<'a> MipsAssembler<'a> {
         );
     }
 
-    fn i_type_rs_rt(
-        &mut self,
-        ctx: &mut assembler::LangCtx<'a, '_, Self>,
-        node: assembler::NodeRef<'a>,
-        kind: LabelKind,
-        opcode: Opcodes,
-    ) {
-        let Node((RegArg(rs), RegArg(rt), immediate), node) = ctx.eval(self).coerced(node);
-        let (imm, _) = self.immediate(ctx, node, kind, immediate);
-        self.instruction(
-            ctx,
-            node,
-            opcode as u32 + rs.unwrap_or_default().rs() + rt.unwrap_or_default().rt() + imm_16(imm),
-        );
-    }
-
     fn i_type_rt_rs_idx(
         &mut self,
         ctx: &mut LangCtx<'a, '_, Self>,
