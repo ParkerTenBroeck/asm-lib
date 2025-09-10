@@ -37,4 +37,8 @@ impl DebugInfo {
             self.data.push(DataDbg { range, node })
         }
     }
+
+    pub fn resolve_reloc_dbg(&self, reloc_idx: RelocIdx) -> Option<&NodeOwned> {
+        self.relocs.get(&reloc_idx)
+    }
 }

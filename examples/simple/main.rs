@@ -37,6 +37,8 @@ main:
 .rodata
     message: .string "Hello, World!"; .size; .type obj; .global
 
+    main_fn_ptr: .values main; .size; .type obj; .global
+
 .section .stack 
     _stack_end: .global; .align 1<<12; .space 1<<12
     _stack_start: .size 1<<12; .global

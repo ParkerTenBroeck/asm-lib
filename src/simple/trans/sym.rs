@@ -181,7 +181,7 @@ impl<T: PrimInt> Symbols<T> {
         });
     }
 
-    pub fn symbols(&self) -> impl Iterator<Item = (SymbolIdx, &Symbol<T>)> {
+    pub fn symbols(&self) -> impl ExactSizeIterator<Item = (SymbolIdx, &Symbol<T>)> {
         self.symbols
             .iter()
             .enumerate()

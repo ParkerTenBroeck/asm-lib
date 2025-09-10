@@ -16,7 +16,7 @@ impl TranslationUnitMachine for MipsTranslationUnit {
     fn fmt_section_disassembly(
         section: &Section<Self>,
         trans: &assembler::simple::trans::TranslationUnit<Self>,
-        f: &mut std::fmt::Formatter<'_>,
+        f: &mut impl std::fmt::Write,
     ) -> std::fmt::Result {
         let mut offset = 0;
         let chunk_size = 4;
@@ -138,7 +138,7 @@ impl TranslationUnitMachine for MipsTranslationUnit {
 
             for (_, reloc) in section.relocations().find_at(offset as u32) {
                 write!(f, "    ")?;
-                reloc.fmt(f, trans)?;
+                reloc.display(f, trans)?;
             }
 
             writeln!(f)?;
@@ -146,7 +146,6 @@ impl TranslationUnitMachine for MipsTranslationUnit {
         }
 
         writeln!(f)?;
-        section.relocations().fmt(f, trans)?;
         Ok(())
     }
 }
@@ -181,13 +180,13 @@ pub enum MipsRelocCalc {
     Sub(SymbolIdx, SymbolIdx),
 }
 
-impl Reloc for MipsReloc {}
+impl Reloc for MipsReloc {
+    type Machine = MipsTranslationUnit;
 
-impl MipsReloc {
-    pub fn fmt(
+    fn display(
         &self,
-        f: &mut std::fmt::Formatter<'_>,
-        trans: &TranslationUnit<MipsTranslationUnit>,
+        f: &mut impl std::fmt::Write,
+        trans: &TranslationUnit<Self::Machine>,
     ) -> std::fmt::Result {
         match self.pattern {
             MipsRelocPattern::JumpU26 => write!(f, "jump_u26")?,
@@ -204,7 +203,11 @@ impl MipsReloc {
         }
         write!(f, "(")?;
 
-        let write_sym = |f: &mut std::fmt::Formatter<'_>, symbol_idx| -> std::fmt::Result {
+        fn display_resolved(
+            f: &mut impl std::fmt::Write,
+            symbol_idx: SymbolIdx,
+            trans: &TranslationUnit<MipsTranslationUnit>,
+        ) -> std::fmt::Result {
             let sym = trans.get_symbol(symbol_idx);
             write!(f, "{}", trans.get_str(sym.name()).unwrap_or_default())?;
             if let Some(section) = sym.section {
@@ -219,34 +222,34 @@ impl MipsReloc {
                 write!(f, "]")?
             }
             write!(f, ")")
-        };
+        }
 
         match self.calculation {
             MipsRelocCalc::Absolute(symbol_idx) => {
                 write!(f, "abs(")?;
-                write_sym(f, symbol_idx)?;
+                display_resolved(f, symbol_idx, trans)?;
                 write!(f, ")")?
             }
             MipsRelocCalc::Pcrel(symbol_idx) => {
                 write!(f, "pcrel(")?;
-                write_sym(f, symbol_idx)?;
+                display_resolved(f, symbol_idx, trans)?;
                 write!(f, ")")?
             }
             MipsRelocCalc::Size(symbol_idx) => {
                 write!(f, "size(")?;
-                write_sym(f, symbol_idx)?;
+                display_resolved(f, symbol_idx, trans)?;
                 write!(f, ")")?
             }
             MipsRelocCalc::Align(symbol_idx) => {
                 write!(f, "align(")?;
-                write_sym(f, symbol_idx)?;
+                display_resolved(f, symbol_idx, trans)?;
                 write!(f, ")")?
             }
             MipsRelocCalc::Sub(lhs, rhs) => {
                 write!(f, "abs(")?;
-                write_sym(f, lhs)?;
+                display_resolved(f, lhs, trans)?;
                 write!(f, ")-abs(")?;
-                write_sym(f, rhs)?;
+                display_resolved(f, rhs, trans)?;
                 write!(f, ")")?
             }
         }

@@ -23,13 +23,13 @@ use crate::node::NodeOwned;
 pub struct SectionIdx(NonZeroUsize);
 
 pub trait TranslationUnitMachine {
-    type Reloc: Reloc;
+    type Reloc: Reloc<Machine = Self>;
     type PtrSizeType: PrimInt + std::fmt::Debug + std::fmt::LowerHex;
 
     fn fmt_section_disassembly(
         section: &Section<Self>,
         trans: &TranslationUnit<Self>,
-        f: &mut std::fmt::Formatter<'_>,
+        f: &mut impl std::fmt::Write,
     ) -> std::fmt::Result {
         display::fmt_section_hex(section, trans, f)
     }

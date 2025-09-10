@@ -1,11 +1,19 @@
-use std::{fmt::Debug, num::NonZeroUsize};
+use std::fmt::Debug;
 
-use crate::simple::trans::TranslationUnitMachine;
+use crate::simple::trans::{TranslationUnit, TranslationUnitMachine};
 
-pub trait Reloc: Clone + std::fmt::Debug {}
+pub trait Reloc: Clone + std::fmt::Debug {
+    type Machine: TranslationUnitMachine<Reloc = Self>;
+
+    fn display(
+        &self,
+        f: &mut impl std::fmt::Write,
+        trans: &TranslationUnit<Self::Machine>,
+    ) -> std::fmt::Result;
+}
 
 #[derive(Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord, Debug)]
-pub struct RelocIdx(NonZeroUsize);
+pub struct RelocIdx(usize);
 
 pub struct Relocations<T: TranslationUnitMachine + ?Sized> {
     relocs: Vec<(T::PtrSizeType, T::Reloc)>,
@@ -38,17 +46,24 @@ impl<T: TranslationUnitMachine + ?Sized> Relocations<T> {
         Self { relocs: Vec::new() }
     }
 
+    pub fn relocs(&self) -> impl ExactSizeIterator<Item = (RelocIdx, T::PtrSizeType, &T::Reloc)> {
+        self.relocs
+            .iter()
+            .enumerate()
+            .map(|(i, (o, r))| (RelocIdx(i), *o, r))
+    }
+
     pub fn get_mut(&mut self, index: RelocIdx) -> &mut (T::PtrSizeType, T::Reloc) {
-        &mut self.relocs[index.0.get() - 1]
+        &mut self.relocs[index.0]
     }
 
     pub fn get(&mut self, index: RelocIdx) -> &(T::PtrSizeType, T::Reloc) {
-        &self.relocs[index.0.get() - 1]
+        &self.relocs[index.0]
     }
 
     pub fn emit(&mut self, offset: T::PtrSizeType, reloc: T::Reloc) -> RelocIdx {
         self.relocs.push((offset, reloc));
-        RelocIdx(NonZeroUsize::new(self.relocs.len()).unwrap())
+        RelocIdx(self.relocs.len() - 1)
     }
 }
 

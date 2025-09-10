@@ -1,9 +1,9 @@
 use crate::{
     ansi::{self, *},
-    simple::trans::reloc::Relocations,
+    simple::trans::reloc::Reloc,
 };
 use num_traits::PrimInt;
-use std::fmt::{Formatter, LowerHex, Write};
+use std::fmt::{LowerHex, Write};
 
 use crate::simple::trans::{
     TranslationUnit, TranslationUnitMachine,
@@ -13,19 +13,19 @@ use crate::simple::trans::{
 
 impl<T: TranslationUnitMachine<PtrSizeType: LowerHex>> std::fmt::Display for TranslationUnit<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.symbols.fmt(f, self)?;
+        self.symbols.display(f, self)?;
         writeln!(f)?;
         for section in &self.sections {
-            section.fmt(f, self)?
+            section.display(&mut *f, self)?
         }
         Ok(())
     }
 }
 
 impl<T: TranslationUnitMachine<PtrSizeType: LowerHex>> Section<T> {
-    pub fn fmt(
+    pub fn display(
         &self,
-        f: &mut std::fmt::Formatter<'_>,
+        f: &mut impl std::fmt::Write,
         trans: &super::TranslationUnit<T>,
     ) -> std::fmt::Result {
         let name = trans
@@ -47,18 +47,49 @@ impl<T: TranslationUnitMachine<PtrSizeType: LowerHex>> Section<T> {
         )?;
         writeln!(f)?;
 
-        if self.executable {
-            T::fmt_section_disassembly(self, trans, f)
-        } else {
-            fmt_section_hex(self, trans, f)
+        let mut f = Indent::new_start(f, 2);
+        let f = &mut f;
+
+        {
+            writeln!(f, "data\n")?;
+            let mut f = Indent::new_start(&mut *f, 2);
+            let f = &mut f;
+            if self.executable {
+                T::fmt_section_disassembly(self, trans, f)?;
+            } else {
+                fmt_section_hex(self, trans, f)?;
+            }
         }
+        {
+            writeln!(f, "relocations\n")?;
+
+            let mut f = Indent::new_start(&mut *f, 2);
+            let f = &mut f;
+            indexed_list_display(
+                self.relocations.relocs(),
+                f,
+                format_args!("{: >ptr_size$} kind", "offset"),
+                |(idx, offset, reloc), f| {
+                    write!(f, "{offset:0>ptr_size$x} ")?;
+                    reloc.display(f, trans)?;
+                    if let Some(dbg) = self.debug_info.resolve_reloc_dbg(idx) {
+                        let src = dbg.src_slice();
+                        write!(f, "\n{FAINT}   -definition: {dbg} -> {src:?}{RESET}",)?;
+                    }
+                    Ok(())
+                },
+            )?;
+        }
+
+        writeln!(f)?;
+        Ok(())
     }
 }
 
 pub fn fmt_section_hex<T: TranslationUnitMachine<PtrSizeType: LowerHex> + ?Sized>(
     section: &Section<T>,
     trans: &TranslationUnit<T>,
-    f: &mut Formatter<'_>,
+    f: &mut impl std::fmt::Write,
 ) -> std::fmt::Result {
     let mut offset = 0;
     let chunk_size = 16;
@@ -102,24 +133,13 @@ pub fn fmt_section_hex<T: TranslationUnitMachine<PtrSizeType: LowerHex> + ?Sized
     }
 
     writeln!(f)?;
-    section.relocations.fmt(f, trans)?;
     Ok(())
 }
 
-impl<T: TranslationUnitMachine + ?Sized> Relocations<T> {
-    pub fn fmt(
-        &self,
-        f: &mut std::fmt::Formatter<'_>,
-        trans: &super::TranslationUnit<T>,
-    ) -> std::fmt::Result {
-        Ok(())
-    }
-}
-
 impl<T: PrimInt + LowerHex> Symbol<T> {
-    fn fmt<M: TranslationUnitMachine<PtrSizeType = T>>(
+    fn display<M: TranslationUnitMachine<PtrSizeType = T>>(
         &self,
-        f: &mut std::fmt::Formatter<'_>,
+        f: &mut impl std::fmt::Write,
         idx: SymbolIdx,
         trans: &TranslationUnit<M>,
     ) -> std::fmt::Result {
@@ -134,59 +154,36 @@ impl<T: PrimInt + LowerHex> Symbol<T> {
         let name = trans.str_table.get(self.name()).unwrap_or_default();
         let name = name.escape_debug();
         let int_size = std::mem::size_of::<T>() * 2;
+
+        write!(
+            f,
+            "{offset:0>int_size$x} {size: >int_size$x} {kind:10} {visibility:6} "
+        )?;
         if let Some(section_idx) = section {
             let section = trans.get(*section_idx);
             let section_name = section.name();
             let section_name = trans.str_table.get(section_name).unwrap_or_default();
             let section_name = "\"".to_owned() + section_name + "\"";
-            write!(
-                f,
-                "{offset:0>int_size$x} {size: >int_size$x} {kind:10} {visibility:6} {section_name: <10} \"{name}\"",
-            )?;
+            write!(f, "{section_name: <10} \"{name}\"",)?;
         } else {
-            write!(
-                f,
-                "{offset:0>int_size$x} {size: >int_size$x} {kind:10} {visibility:6} None       \"{name}\""
-            )?;
+            write!(f, "None       \"{name}\"")?;
         }
         if let Some(dbg) = trans.symbols.get_symbol_dbg(idx) {
-            let list_size = trans
-                .symbols
-                .len()
-                .checked_ilog10()
-                .map(|v| v as usize + 1)
-                .unwrap_or(0);
             if let Some(def) = &dbg.definition {
-                write!(
-                    f,
-                    "\n{FAINT}{:list_size$}   -definition: {def} -> {:?}{RESET}",
-                    "",
-                    def.src_slice()
-                )?;
+                let src = def.src_slice();
+                write!(f, "\n{FAINT}   -definition: {def} -> {src:?}{RESET}",)?;
             }
             if let Some(def) = &dbg.size {
-                write!(
-                    f,
-                    "\n{FAINT}{:list_size$}   -size: {def} -> {:?}{RESET}",
-                    "",
-                    def.src_slice()
-                )?;
+                let src = def.src_slice();
+                write!(f, "\n{FAINT}   -size: {def} -> {src:?}{RESET}")?;
             }
             if let Some(def) = &dbg.ty {
-                write!(
-                    f,
-                    "\n{FAINT}{:list_size$}   -type: {def} -> {:?}{RESET}",
-                    "",
-                    def.src_slice()
-                )?;
+                let src = def.src_slice();
+                write!(f, "\n{FAINT}   -type: {def} -> {src:?}{RESET}")?;
             }
             if let Some(def) = &dbg.visibility {
-                write!(
-                    f,
-                    "\n{FAINT}{:list_size$}   -visability: {def} -> {:?}{RESET}",
-                    "",
-                    def.src_slice()
-                )?;
+                let src = def.src_slice();
+                write!(f, "\n{FAINT}   -visability: {def} -> {src:?}{RESET}")?;
             }
         }
         Ok(())
@@ -194,48 +191,50 @@ impl<T: PrimInt + LowerHex> Symbol<T> {
 }
 
 impl<T: PrimInt + LowerHex> Symbols<T> {
-    pub(crate) fn fmt<M: TranslationUnitMachine<PtrSizeType = T>>(
+    pub fn display<M: TranslationUnitMachine<PtrSizeType = T>>(
         &self,
-        f: &mut std::fmt::Formatter<'_>,
+        f: &mut impl std::fmt::Write,
         trans: &TranslationUnit<M>,
     ) -> std::fmt::Result {
         writeln!(f, "symbol table")?;
         let int_size = std::mem::size_of::<T>() * 2;
-        let offset = "Offset";
-        let size = "Size";
-        let kind = "Type";
-        let visibility = "Vis";
-        let section = "Section";
-        let name = "Name";
-        let list_size = trans
-            .symbols
-            .len()
-            .checked_ilog10()
-            .map(|v| v as usize + 1)
-            .unwrap_or(0);
-        writeln!(
+        let offset = "offset";
+        let size = "size";
+        let kind = "type";
+        let visibility = "vis";
+        let section = "section";
+        let name = "name";
+
+        indexed_list_display(
+            trans.symbols.symbols(),
             f,
-            "{:list_size$}  {offset: >int_size$} {size: >int_size$} {kind:10} {visibility:6} {section:10} {name}",
-            ""
+            std::format_args!(
+                "{offset: >int_size$} {size: >int_size$} {kind:10} {visibility:6} {section:10} {name}"
+            ),
+            |(i, s), f| s.display(f, i, trans),
         )?;
-        for (idx, symbol) in self.symbols() {
-            write!(f, "{: >list_size$}: ", idx)?;
-            symbol.fmt(f, idx, trans)?;
-            writeln!(f)?;
-        }
         Ok(())
     }
 }
 
-pub fn list<T>(list: &[T], f: &mut std::fmt::Formatter<'_>, header: impl std::fmt::Display, mut disp: impl FnMut(&T, Indent<&mut std::fmt::Formatter<'_>>) -> std::fmt::Result) -> std::fmt::Result{
-    let max_int_length = list.len().checked_ilog10().map(|v| v as usize + 1).unwrap_or(0);
+pub fn indexed_list_display<T, F: std::fmt::Write>(
+    list: impl ExactSizeIterator<Item = T>,
+    f: &mut F,
+    header: impl std::fmt::Display,
+    mut disp: impl FnMut(T, &mut Indent<&mut F>) -> std::fmt::Result,
+) -> std::fmt::Result {
+    let max_int_length = list
+        .len()
+        .checked_ilog10()
+        .map(|v| v as usize + 1)
+        .unwrap_or(0);
 
-    writeln!(f, "{: >max_int_length$} ", header)?;
+    writeln!(f, "{: >max_int_length$}  {header}", "")?;
 
-    for (idx, item) in list.iter().enumerate(){
-            write!(f, "{: >max_int_length$}: ", idx)?;
-            disp(item, Indent::new_middle(f, max_int_length))?;
-            writeln!(f)?;
+    for (idx, item) in list.enumerate() {
+        write!(f, "{: >max_int_length$}: ", idx)?;
+        disp(item, &mut Indent::new_middle(f, max_int_length))?;
+        writeln!(f)?;
     }
     Ok(())
 }
