@@ -1,5 +1,3 @@
-use std::fmt::Formatter;
-
 use assembler::simple::trans::{
     TranslationUnit, TranslationUnitMachine, display::RightPad, reloc::Reloc, section::Section,
     sym::SymbolIdx,
@@ -169,6 +167,21 @@ pub enum MipsRelocPattern {
     U8,
     U16,
     U32,
+}
+
+impl MipsRelocPattern{
+    pub fn checked_signed(&self) -> u32{
+        match self{
+            MipsRelocPattern::JumpU26 => todo!(),
+            MipsRelocPattern::BranchI16 => todo!(),
+            MipsRelocPattern::ImmI16 => todo!(),
+            MipsRelocPattern::ImmU16 => todo!(),
+            MipsRelocPattern::ImmH16 => todo!(),
+            MipsRelocPattern::U8 => todo!(),
+            MipsRelocPattern::U16 => todo!(),
+            MipsRelocPattern::U32 => todo!(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy)]

@@ -354,13 +354,15 @@ impl<'a> MipsAssembler<'a> {
                     }
                 }
             },
-            LabelKind::IdxSaveMem => {
-                self.instruction(ctx, node, instruction as u32 + rs.rs() + rt.rt());
-            }
-            LabelKind::IdxLoadMem => {
+            LabelKind::IdxSaveMem| LabelKind::IdxLoadMem => {
                 self.instruction(ctx, node, instruction as u32 + rs.rs() + rt.rt());
             }
             LabelKind::Branch => {
+                match immediate{
+                    Immediate::SignedConstant(_) => todo!(),
+                    Immediate::UnsignedConstant(_) => todo!(),
+                    Immediate::Label(label_expr) => todo!(),
+                }
                 self.instruction(ctx, node, instruction as u32 + rs.rs() + rt.rt());
             }
             LabelKind::Lui => {
