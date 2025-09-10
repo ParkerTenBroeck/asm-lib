@@ -4,7 +4,7 @@ use assembler::{
 };
 
 use crate::{
-    MipsAssembler, args::Immediate, indexed::MemoryIndex, lang::LabelKind, opcodes::Opcodes,
+    MipsAssembler, args::Immediate, indexed::MemoryIndex, lang::InstructionKind, opcodes::Opcodes,
     reg::Register,
 };
 
@@ -54,35 +54,35 @@ impl<'a> MipsAssembler<'a> {
             "slit" => self.i_type_rt_rs_sign(ctx, node, Opcodes::Slti),
             "sltiu" => self.i_type_rt_rs_unsign(ctx, node, Opcodes::Sltiu),
 
-            "lb" => self.i_type_rt_idx(ctx, node, LabelKind::IdxLoadMem, Opcodes::Lb),
-            "lbu" => self.i_type_rt_idx(ctx, node, LabelKind::IdxLoadMem, Opcodes::Lbu),
-            "lh" => self.i_type_rt_idx(ctx, node, LabelKind::IdxLoadMem, Opcodes::Lh),
-            "lhu" => self.i_type_rt_idx(ctx, node, LabelKind::IdxLoadMem, Opcodes::Lhu),
-            "lw" => self.i_type_rt_idx(ctx, node, LabelKind::IdxLoadMem, Opcodes::Lw),
-            "lwl" => self.i_type_rt_idx(ctx, node, LabelKind::IdxLoadMem, Opcodes::Lwl),
-            "lwr" => self.i_type_rt_idx(ctx, node, LabelKind::IdxLoadMem, Opcodes::Lwr),
+            "lb" => self.i_type_rt_idx(ctx, node, InstructionKind::IdxLoadMem, Opcodes::Lb),
+            "lbu" => self.i_type_rt_idx(ctx, node, InstructionKind::IdxLoadMem, Opcodes::Lbu),
+            "lh" => self.i_type_rt_idx(ctx, node, InstructionKind::IdxLoadMem, Opcodes::Lh),
+            "lhu" => self.i_type_rt_idx(ctx, node, InstructionKind::IdxLoadMem, Opcodes::Lhu),
+            "lw" => self.i_type_rt_idx(ctx, node, InstructionKind::IdxLoadMem, Opcodes::Lw),
+            "lwl" => self.i_type_rt_idx(ctx, node, InstructionKind::IdxLoadMem, Opcodes::Lwl),
+            "lwr" => self.i_type_rt_idx(ctx, node, InstructionKind::IdxLoadMem, Opcodes::Lwr),
 
-            "sb" => self.i_type_rt_idx(ctx, node, LabelKind::IdxSaveMem, Opcodes::Sb),
-            "sh" => self.i_type_rt_idx(ctx, node, LabelKind::IdxSaveMem, Opcodes::Sh),
-            "sw" => self.i_type_rt_idx(ctx, node, LabelKind::IdxSaveMem, Opcodes::Sw),
-            "swl" => self.i_type_rt_idx(ctx, node, LabelKind::IdxSaveMem, Opcodes::Swl),
-            "swr" => self.i_type_rt_idx(ctx, node, LabelKind::IdxSaveMem, Opcodes::Swr),
+            "sb" => self.i_type_rt_idx(ctx, node, InstructionKind::IdxSaveMem, Opcodes::Sb),
+            "sh" => self.i_type_rt_idx(ctx, node, InstructionKind::IdxSaveMem, Opcodes::Sh),
+            "sw" => self.i_type_rt_idx(ctx, node, InstructionKind::IdxSaveMem, Opcodes::Sw),
+            "swl" => self.i_type_rt_idx(ctx, node, InstructionKind::IdxSaveMem, Opcodes::Swl),
+            "swr" => self.i_type_rt_idx(ctx, node, InstructionKind::IdxSaveMem, Opcodes::Swr),
 
             "j" => self.j_type(ctx, node, Opcodes::J),
             "jal" => self.j_type(ctx, node, Opcodes::Jal),
             "jalr" => self.r_type_rd_rs(ctx, node, Opcodes::Jalr),
             "jr" => self.r_type_rs(ctx, node, Opcodes::Jr),
 
-            "beq" => self.i_type_rt_rs(ctx, node, LabelKind::Branch, Opcodes::Beq),
-            "bgez" => self.i_type_rt(ctx, node, LabelKind::Branch, Opcodes::Bgez),
-            "bgezal" => self.i_type_rt(ctx, node, LabelKind::Branch, Opcodes::Bgezal),
-            "bgtz" => self.i_type_rt(ctx, node, LabelKind::Branch, Opcodes::Bgtz),
-            "blez" => self.i_type_rt(ctx, node, LabelKind::Branch, Opcodes::Blez),
-            "bltz" => self.i_type_rt(ctx, node, LabelKind::Branch, Opcodes::Bltz),
-            "bltzal" => self.i_type_rt(ctx, node, LabelKind::Branch, Opcodes::Bltzal),
-            "bne" => self.i_type_rt_rs(ctx, node, LabelKind::Branch, Opcodes::Bne),
+            "beq" => self.i_type_rt_rs(ctx, node, InstructionKind::Branch, Opcodes::Beq),
+            "bgez" => self.i_type_rt(ctx, node, InstructionKind::Branch, Opcodes::Bgez),
+            "bgezal" => self.i_type_rt(ctx, node, InstructionKind::Branch, Opcodes::Bgezal),
+            "bgtz" => self.i_type_rt(ctx, node, InstructionKind::Branch, Opcodes::Bgtz),
+            "blez" => self.i_type_rt(ctx, node, InstructionKind::Branch, Opcodes::Blez),
+            "bltz" => self.i_type_rt(ctx, node, InstructionKind::Branch, Opcodes::Bltz),
+            "bltzal" => self.i_type_rt(ctx, node, InstructionKind::Branch, Opcodes::Bltzal),
+            "bne" => self.i_type_rt_rs(ctx, node, InstructionKind::Branch, Opcodes::Bne),
 
-            "lui" => self.i_type_rt(ctx, node, LabelKind::Lui, Opcodes::Lui),
+            "lui" => self.i_type_rt(ctx, node, InstructionKind::Lui, Opcodes::Lui),
 
             "break" => self.no_args(ctx, node, Opcodes::Break as u32),
             "syscall" => self.no_args(ctx, node, Opcodes::Syscall as u32),
@@ -94,9 +94,9 @@ impl<'a> MipsAssembler<'a> {
 
             "ret" => self.no_args(ctx, node, Opcodes::Jr as u32 + Register(31).rs()),
 
-            "b" => self.i_type(ctx, node, LabelKind::Branch, Opcodes::Bgez),
-            "bal" => self.i_type(ctx, node, LabelKind::Branch, Opcodes::Bgezal),
-            "bnez" => self.i_type_rt(ctx, node, LabelKind::Branch, Opcodes::Bne),
+            "b" => self.i_type(ctx, node, InstructionKind::Branch, Opcodes::Bgez),
+            "bal" => self.i_type(ctx, node, InstructionKind::Branch, Opcodes::Bgezal),
+            "bnez" => self.i_type_rt(ctx, node, InstructionKind::Branch, Opcodes::Bne),
 
             "blt" | "ble" | "bgt" | "bge" => {
                 let Node((RegArg(lhs), RegArg(rhs)), node) = ctx.eval(self).coerced(node);
@@ -147,7 +147,7 @@ impl<'a> MipsAssembler<'a> {
                 self.with_immediate(
                     ctx,
                     node,
-                    LabelKind::IdxLoadMem,
+                    InstructionKind::IdxLoadMem,
                     immediate,
                     rs,
                     rt,
@@ -156,7 +156,7 @@ impl<'a> MipsAssembler<'a> {
                 self.with_immediate(
                     ctx,
                     node,
-                    LabelKind::IdxLoadMem,
+                    InstructionKind::IdxLoadMem,
                     immediate,
                     rs,
                     rt,
@@ -174,7 +174,7 @@ impl<'a> MipsAssembler<'a> {
                 self.with_immediate(
                     ctx,
                     node,
-                    LabelKind::IdxSaveMem,
+                    InstructionKind::IdxSaveMem,
                     immediate,
                     rs,
                     rt,
@@ -183,7 +183,7 @@ impl<'a> MipsAssembler<'a> {
                 self.with_immediate(
                     ctx,
                     node,
-                    LabelKind::IdxSaveMem,
+                    InstructionKind::IdxSaveMem,
                     immediate,
                     rs,
                     rt,
@@ -200,7 +200,7 @@ impl<'a> MipsAssembler<'a> {
                 self.with_immediate(
                     ctx,
                     node,
-                    LabelKind::La,
+                    InstructionKind::La,
                     immediate,
                     Register::ZERO,
                     rt,

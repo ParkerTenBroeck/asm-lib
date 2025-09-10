@@ -169,9 +169,9 @@ pub enum MipsRelocPattern {
     U32,
 }
 
-impl MipsRelocPattern{
-    pub fn checked_signed(&self) -> u32{
-        match self{
+impl MipsRelocPattern {
+    pub fn checked_signed(&self) -> u32 {
+        match self {
             MipsRelocPattern::JumpU26 => todo!(),
             MipsRelocPattern::BranchI16 => todo!(),
             MipsRelocPattern::ImmI16 => todo!(),

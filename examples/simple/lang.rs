@@ -26,7 +26,7 @@ impl<'a> Default for MipsAssembler<'a> {
     }
 }
 
-pub enum LabelKind {
+pub enum InstructionKind {
     IdxSaveMem,
     IdxLoadMem,
     Branch,
@@ -84,6 +84,18 @@ impl<'a> SimpleAssemblyLanguage<'a> for MipsAssembler<'a> {
         self.assemble_mnemonic_impl(ctx, mnemonic, node);
     }
 
+    fn eval_binop(
+        &mut self,
+        ctx: &mut ExprCtx<'a, '_, Self>,
+        node: NodeRef<'a>,
+        lhs: assembler::expression::NodeVal<'a, Self>,
+        op: assembler::Node<'a, assembler::expression::binop::BinOp>,
+        rhs: assembler::expression::NodeVal<'a, Self>,
+        hint: ValueType<'a, Self>,
+    ) -> Value<'a, Self> {
+        self.eval_binop_impl(ctx, node, lhs, op, rhs, hint)
+    }
+
     fn eval_index(
         &mut self,
         ctx: &mut ExprCtx<'a, '_, Self>,
@@ -94,41 +106,7 @@ impl<'a> SimpleAssemblyLanguage<'a> for MipsAssembler<'a> {
         closing: NodeRef<'a>,
         hint: ValueType<'a, Self>,
     ) -> Value<'a, Self> {
-        let (Some(lhs), Some(rhs)) = (lhs, rhs) else {
-            return ctx
-                .eval(self)
-                .index_base(node, lhs, opening, rhs, closing, hint);
-        };
-        match (lhs.0, rhs.0) {
-            (Value::Register(r), Value::Constant(c)) | (Value::Constant(c), Value::Register(r)) => {
-                Value::Indexed(MemoryIndex::RegisterOffset(
-                    r,
-                    c.checked_cast_iptr(node, ctx.context).unwrap_or(0),
-                ))
-            }
-            (Value::Indexed(MemoryIndex::RegisterOffset(r, o)), Value::Constant(c))
-            | (Value::Constant(c), Value::Indexed(MemoryIndex::RegisterOffset(r, o))) => {
-                Value::Indexed(MemoryIndex::RegisterOffset(
-                    r,
-                    o.wrapping_add(c.checked_cast_iptr(node, ctx.context).unwrap_or(0)),
-                ))
-            }
-
-            (Value::Label(l), Value::Constant(c)) | (Value::Constant(c), Value::Label(l)) => {
-                Value::Label(l.offset(c.checked_cast_iptr(node, ctx.context).unwrap_or(0)))
-            }
-            (Value::Label(l), Value::Register(r)) | (Value::Register(r), Value::Label(l)) => {
-                Value::Indexed(MemoryIndex::LabelRegisterOffset(r, l))
-            }
-
-            (Value::Label(l), Value::Indexed(MemoryIndex::RegisterOffset(r, i)))
-            | (Value::Indexed(MemoryIndex::RegisterOffset(r, i)), Value::Label(l)) => {
-                Value::Indexed(MemoryIndex::LabelRegisterOffset(r, l.offset(i)))
-            }
-            _ => ctx
-                .eval(self)
-                .index_base(node, Some(lhs), opening, Some(rhs), closing, hint),
-        }
+        self.eval_index_impl(ctx, node, lhs, opening, rhs, closing, hint)
     }
 
     fn add_value_data(
@@ -170,6 +148,15 @@ impl<'a> SimpleAssemblyLanguage<'a> for MipsAssembler<'a> {
                 .context
                 .report_error(node, format!("cannot use '{}' as data", value.get_type())),
         }
+    }
+
+    fn eval_func(
+        &mut self,
+        ctx: &mut ExprCtx<'a, '_, Self>,
+        func: assembler::expression::FuncParamParser<'a, '_>,
+        hint: ValueType<'a, Self>,
+    ) -> Value<'a, Self> {
+        self.eval_func_impl(ctx, func, hint)
     }
 
     fn state_mut(&mut self) -> &mut SALState<'a, Self> {

@@ -8,7 +8,7 @@ use crate::{
     MipsAssembler,
     args::{Immediate, ImmediateI16, ImmediateU16, ShiftConstant},
     indexed::MemoryIndex,
-    lang::LabelKind,
+    lang::InstructionKind,
     opcodes::*,
     reg::Register,
     trans::MipsReloc,
@@ -131,7 +131,7 @@ impl<'a> MipsAssembler<'a> {
                 self.with_immediate(
                     ctx,
                     node,
-                    LabelKind::ArithSigned,
+                    InstructionKind::ArithSigned,
                     Immediate::Label(l),
                     rs,
                     rt,
@@ -161,7 +161,7 @@ impl<'a> MipsAssembler<'a> {
             ImmediateU16::Label(l) => self.with_immediate(
                 ctx,
                 node,
-                LabelKind::ArithUnsigned,
+                InstructionKind::ArithUnsigned,
                 Immediate::Label(l),
                 rs,
                 rt,
@@ -174,7 +174,7 @@ impl<'a> MipsAssembler<'a> {
         &mut self,
         ctx: &mut assembler::LangCtx<'a, '_, Self>,
         node: assembler::NodeRef<'a>,
-        kind: LabelKind,
+        kind: InstructionKind,
         opcode: Opcodes,
     ) {
         let Node(immediate, node) = ctx.eval(self).coerced(node);
@@ -193,7 +193,7 @@ impl<'a> MipsAssembler<'a> {
         &mut self,
         ctx: &mut assembler::LangCtx<'a, '_, Self>,
         node: assembler::NodeRef<'a>,
-        kind: LabelKind,
+        kind: InstructionKind,
         opcode: Opcodes,
     ) {
         let Node((RegArg(rt), immediate), node) = ctx.eval(self).coerced(node);
@@ -205,7 +205,7 @@ impl<'a> MipsAssembler<'a> {
         &mut self,
         ctx: &mut assembler::LangCtx<'a, '_, Self>,
         node: assembler::NodeRef<'a>,
-        kind: LabelKind,
+        kind: InstructionKind,
         opcode: Opcodes,
     ) {
         let Node((RegArg(rt), RegArg(rs), immediate), node) = ctx.eval(self).coerced(node);
@@ -218,7 +218,7 @@ impl<'a> MipsAssembler<'a> {
         &mut self,
         ctx: &mut LangCtx<'a, '_, Self>,
         node: NodeRef<'a>,
-        kind: LabelKind,
+        kind: InstructionKind,
         opcode: Opcodes,
     ) {
         let Node((RegArg(rt), IndexedArg(indexed)), node) = ctx.eval(self).coerced(node);
@@ -241,7 +241,7 @@ impl<'a> MipsAssembler<'a> {
         self.with_immediate(
             ctx,
             node,
-            LabelKind::Jump,
+            InstructionKind::Jump,
             immediate,
             Register::ZERO,
             Register::ZERO,
@@ -263,7 +263,7 @@ impl<'a> MipsAssembler<'a> {
         &mut self,
         ctx: &mut assembler::LangCtx<'a, '_, Self>,
         node: assembler::NodeRef<'a>,
-        kind: LabelKind,
+        kind: InstructionKind,
         immediate: Immediate<'a>,
         rs: Register,
         rt: Register,
@@ -274,7 +274,7 @@ impl<'a> MipsAssembler<'a> {
 
         use crate::label::LabelExprType as LET;
         match kind {
-            LabelKind::La => match immediate {
+            InstructionKind::La => match immediate {
                 Immediate::SignedConstant(signed)
                     if i16::MIN as i32 <= signed && signed <= i16::MAX as i32 =>
                 {
@@ -354,27 +354,27 @@ impl<'a> MipsAssembler<'a> {
                     }
                 }
             },
-            LabelKind::IdxSaveMem| LabelKind::IdxLoadMem => {
+            InstructionKind::IdxSaveMem | InstructionKind::IdxLoadMem => {
                 self.instruction(ctx, node, instruction as u32 + rs.rs() + rt.rt());
             }
-            LabelKind::Branch => {
-                match immediate{
+            InstructionKind::Branch => {
+                match immediate {
                     Immediate::SignedConstant(_) => todo!(),
                     Immediate::UnsignedConstant(_) => todo!(),
                     Immediate::Label(label_expr) => todo!(),
                 }
                 self.instruction(ctx, node, instruction as u32 + rs.rs() + rt.rt());
             }
-            LabelKind::Lui => {
+            InstructionKind::Lui => {
                 self.instruction(ctx, node, instruction as u32 + rs.rs() + rt.rt());
             }
-            LabelKind::ArithSigned => {
+            InstructionKind::ArithSigned => {
                 self.instruction(ctx, node, instruction as u32 + rs.rs() + rt.rt());
             }
-            LabelKind::ArithUnsigned => {
+            InstructionKind::ArithUnsigned => {
                 self.instruction(ctx, node, instruction as u32 + rs.rs() + rt.rt());
             }
-            LabelKind::Jump => match immediate {
+            InstructionKind::Jump => match immediate {
                 Immediate::Label(l) => {
                     let calculation = match l.ty {
                         LET::Empty => return Default::default(),

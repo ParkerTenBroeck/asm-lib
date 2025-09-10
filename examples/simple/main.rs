@@ -1,4 +1,5 @@
 pub mod args;
+pub mod eval;
 pub mod indexed;
 pub mod instructions;
 pub mod label;
