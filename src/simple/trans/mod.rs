@@ -271,7 +271,8 @@ impl<'a, T: TranslationUnitMachine> SectionMut<'a, T> {
         }
     }
 
-    pub fn emit_comment_dbg(&mut self, _comment: &str, _node: NodeOwned) {
-        // self.section.debug_info.emit_comment_dbg()
+    pub fn emit_comment_dbg(&mut self, comment: &str, _node: NodeOwned) {
+        let offset = self.section.data.current_offset();
+        self.section.debug_info.emit_comment_dbg(offset, comment)
     }
 }

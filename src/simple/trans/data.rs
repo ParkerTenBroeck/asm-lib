@@ -28,7 +28,7 @@ impl<T: PrimInt> Data<T> {
         NumCast::from(self.data.len()).unwrap()
     }
 
-    pub fn push_data(&mut self, data: &[u8], align: T) -> std::ops::Range<usize> {
+    pub fn push_data(&mut self, data: &[u8], align: T) -> std::ops::Range<T> {
         let start = self.data.len();
 
         self.align = self.align.max(align);
@@ -36,10 +36,10 @@ impl<T: PrimInt> Data<T> {
 
         let end = self.data.len();
 
-        start..end
+        T::from(start).unwrap()..T::from(end).unwrap()
     }
 
-    pub fn push_space(&mut self, space: T, align: T) -> std::ops::Range<usize> {
+    pub fn push_space(&mut self, space: T, align: T) -> std::ops::Range<T> {
         let start = self.data.len();
 
         self.align = self.align.max(align);
@@ -48,7 +48,7 @@ impl<T: PrimInt> Data<T> {
 
         let end = self.data.len();
 
-        start..end
+        T::from(start).unwrap()..T::from(end).unwrap()
     }
 
     pub fn align(&self) -> T {

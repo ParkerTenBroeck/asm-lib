@@ -1,5 +1,8 @@
 use assembler::simple::trans::{
-    TranslationUnit, TranslationUnitMachine, display::RightPad, reloc::Reloc, section::Section,
+    TranslationUnit, TranslationUnitMachine,
+    display::{RightPad, fmt_section_disassembly},
+    reloc::Reloc,
+    section::Section,
     sym::SymbolIdx,
 };
 
@@ -16,28 +19,18 @@ impl TranslationUnitMachine for MipsTranslationUnit {
         trans: &assembler::simple::trans::TranslationUnit<Self>,
         f: &mut impl std::fmt::Write,
     ) -> std::fmt::Result {
-        let mut offset = 0;
-        let chunk_size = 4;
-        let ptr_size = std::mem::size_of::<Self::PtrSizeType>() * 2;
+        fmt_section_disassembly(
+            section,
+            trans,
+            f,
+            4,
+            |_, _, _| 4,
+            |_, _, f, ins| {
+                let instruction =
+                    u32::from_be_bytes(std::array::from_fn(|i| ins.get(i).copied().unwrap_or(0)));
 
-        for chunk in section.data().slice().chunks(chunk_size) {
-            write!(f, "{offset:0>ptr_size$x}: ")?;
-
-            for byte in chunk {
-                write!(f, "{byte:0>2x} ")?;
-            }
-            for _ in chunk.len()..chunk_size {
-                write!(f, "   ")?;
-            }
-
-            write!(f, "   ")?;
-
-            {
                 use std::fmt::Write;
                 let mut f = RightPad::new(&mut *f, 32);
-
-                let instruction =
-                    u32::from_be_bytes(std::array::from_fn(|i| chunk.get(i).copied().unwrap_or(0)));
 
                 let opcode = (instruction >> 26) & 0x3f;
                 let rs = Register(((instruction >> 21) & 0x1f) as u8);
@@ -132,19 +125,10 @@ impl TranslationUnitMachine for MipsTranslationUnit {
 
                     _ => write!(f, "unknown opcode=0x{:02x}", opcode)?,
                 }
-            }
 
-            for (_, reloc) in section.relocations().find_at(offset as u32) {
-                write!(f, "    ")?;
-                reloc.display(f, trans)?;
-            }
-
-            writeln!(f)?;
-            offset += chunk.len();
-        }
-
-        writeln!(f)?;
-        Ok(())
+                Ok(())
+            },
+        )
     }
 }
 
@@ -241,36 +225,29 @@ impl Reloc for MipsReloc {
             MipsRelocCalc::Absolute(symbol_idx) => {
                 write!(f, "abs(")?;
                 display_resolved(f, symbol_idx, trans)?;
-                write!(f, ")")?
             }
             MipsRelocCalc::Pcrel(symbol_idx) => {
                 write!(f, "pcrel(")?;
                 display_resolved(f, symbol_idx, trans)?;
-                write!(f, ")")?
             }
             MipsRelocCalc::Size(symbol_idx) => {
                 write!(f, "size(")?;
                 display_resolved(f, symbol_idx, trans)?;
-                write!(f, ")")?
             }
             MipsRelocCalc::Align(symbol_idx) => {
                 write!(f, "align(")?;
                 display_resolved(f, symbol_idx, trans)?;
-                write!(f, ")")?
             }
             MipsRelocCalc::Sub(lhs, rhs) => {
                 write!(f, "abs(")?;
                 display_resolved(f, lhs, trans)?;
                 write!(f, ")-abs(")?;
                 display_resolved(f, rhs, trans)?;
-                write!(f, ")")?
             }
         }
-
         if self.offset != 0 {
             write!(f, "{:+}", self.offset)?;
         }
-
         write!(f, ")")?;
 
         Ok(())

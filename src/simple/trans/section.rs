@@ -7,9 +7,10 @@ pub struct Section<T: TranslationUnitMachine + ?Sized> {
     pub readable: bool,
     pub executable: bool,
     pub writeable: bool,
+    pub offset: T::PtrSizeType,
     pub(crate) data: Data<T::PtrSizeType>,
     pub(crate) relocations: Relocations<T>,
-    pub(crate) debug_info: DebugInfo,
+    pub(crate) debug_info: DebugInfo<T::PtrSizeType>,
 }
 
 impl<T: TranslationUnitMachine> std::fmt::Debug for Section<T> {
@@ -17,6 +18,7 @@ impl<T: TranslationUnitMachine> std::fmt::Debug for Section<T> {
         f.debug_struct("Section")
             .field("name", &self.name)
             .field("data", &self.data)
+            .field("offset", &self.offset)
             .field("relocations", &self.relocations)
             .field("debug_info", &self.debug_info)
             .field("readable", &self.readable)
@@ -26,11 +28,12 @@ impl<T: TranslationUnitMachine> std::fmt::Debug for Section<T> {
     }
 }
 
-impl<T: TranslationUnitMachine> Clone for Section<T> {
+impl<T: TranslationUnitMachine + ?Sized> Clone for Section<T> {
     fn clone(&self) -> Self {
         Self {
             name: self.name,
             data: self.data.clone(),
+            offset: self.offset,
             relocations: self.relocations.clone(),
             debug_info: self.debug_info.clone(),
             readable: self.readable,
@@ -40,11 +43,12 @@ impl<T: TranslationUnitMachine> Clone for Section<T> {
     }
 }
 
-impl<T: TranslationUnitMachine> Section<T> {
+impl<T: TranslationUnitMachine + ?Sized> Section<T> {
     pub fn new(name: StrIdx) -> Self {
         Self {
             name,
             data: Data::new(),
+            offset: num_traits::zero(),
             relocations: Relocations::new(),
             debug_info: DebugInfo::new(),
             readable: true,
@@ -65,7 +69,7 @@ impl<T: TranslationUnitMachine> Section<T> {
         &self.relocations
     }
 
-    pub fn debug_info(&self) -> &DebugInfo {
+    pub fn debug_info(&self) -> &DebugInfo<T::PtrSizeType> {
         &self.debug_info
     }
 }

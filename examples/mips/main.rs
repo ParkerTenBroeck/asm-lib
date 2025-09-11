@@ -27,7 +27,7 @@ _start: .global; .type func;
 
 main:
     la a0, message
-    li a1, size(message)
+    li a1, size(message)+3
 
     li v0, 1 // print syscall id
     syscall

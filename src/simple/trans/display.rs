@@ -1,8 +1,9 @@
 use crate::{
     ansi::{self, *},
+    expression::conversion::FromAsPrimitive,
     simple::trans::reloc::Reloc,
 };
-use num_traits::PrimInt;
+use num_traits::{AsPrimitive, PrimInt, WrappingAdd};
 use std::fmt::{LowerHex, Write};
 
 use crate::simple::trans::{
@@ -84,6 +85,79 @@ impl<T: TranslationUnitMachine<PtrSizeType: LowerHex>> Section<T> {
         writeln!(f)?;
         Ok(())
     }
+}
+
+pub fn fmt_section_disassembly<
+    F: std::fmt::Write,
+    T: TranslationUnitMachine<PtrSizeType: LowerHex + FromAsPrimitive<usize> + WrappingAdd> + ?Sized,
+>(
+    section: &Section<T>,
+    trans: &TranslationUnit<T>,
+    f: &mut F,
+
+    max_ins_size: usize,
+    mut size: impl FnMut(&Section<T>, &TranslationUnit<T>, std::slice::Iter<'_, u8>) -> usize,
+    mut disassemble: impl FnMut(&Section<T>, &TranslationUnit<T>, &mut F, &[u8]) -> std::fmt::Result,
+) -> std::fmt::Result {
+    let mut iter = section.data.slice().iter();
+    let ptr_size = std::mem::size_of::<T::PtrSizeType>() * 2;
+
+    let mut offset = 0;
+    let mut data_offset: T::PtrSizeType = num_traits::zero();
+    while iter.len() > 0 {
+        let size = size(section, trans, iter.clone());
+
+        let start = offset;
+        let data_start = data_offset;
+
+        for (_, comment) in section
+            .debug_info()
+            .resolve_comments(data_start..data_offset.wrapping_add(&FromAsPrimitive::from_as(size)))
+        {
+            writeln!(
+                f,
+                "{: >ptr_size$}    {FAINT}-comment {comment:?}{RESET}",
+                ""
+            )?;
+        }
+
+        write!(f, "{offset:0>ptr_size$x}: ")?;
+
+        for _ in 0..size {
+            if let Some(byte) = iter.next() {
+                offset += 1;
+                data_offset = data_offset.wrapping_add(&num_traits::one());
+                write!(f, "{byte:0>2x} ")?;
+            } else {
+                write!(f, "   ")?;
+            }
+        }
+        for _ in size..max_ins_size {
+            write!(f, "   ")?;
+        }
+
+        disassemble(section, trans, f, &section.data.slice()[start..offset])?;
+
+        for (_, _, reloc) in section.relocations().find_range(data_start..data_offset) {
+            write!(f, "    ")?;
+            reloc.display(f, trans)?;
+        }
+
+        let data_locs = section.debug_info.resolve_data_dbg(data_start..data_offset);
+        for (i, dbg) in data_locs.iter().enumerate() {
+            let src = dbg.node.src_slice();
+            writeln!(f)?;
+            if i+1 == data_locs.len(){
+                write!(f, "{UNDERLINE}")?;
+            }
+            write!(f, "{FAINT}   -definition: {} -> {src:?}{RESET}", dbg.node)?;           
+        }   
+
+        writeln!(f)?;
+    }
+    writeln!(f)?;
+
+    Ok(())
 }
 
 pub fn fmt_section_hex<T: TranslationUnitMachine<PtrSizeType: LowerHex> + ?Sized>(

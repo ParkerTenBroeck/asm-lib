@@ -68,29 +68,35 @@ impl<T: TranslationUnitMachine + ?Sized> Relocations<T> {
 }
 
 impl<T: TranslationUnitMachine<PtrSizeType: Ord> + ?Sized> Relocations<T> {
+    pub fn find_range(
+        &self,
+        range: impl std::ops::RangeBounds<T::PtrSizeType>,
+    ) -> impl ExactSizeIterator<Item = (RelocIdx, T::PtrSizeType, &T::Reloc)> {
+        let start_idx = self
+            .relocs
+            .partition_point(|(o, _)| match range.start_bound() {
+                std::ops::Bound::Included(v) => o < v,
+                std::ops::Bound::Excluded(v) => o <= v,
+                std::ops::Bound::Unbounded => false,
+            });
+
+        let end_idx = self
+            .relocs
+            .partition_point(|(o, _)| match range.end_bound() {
+                std::ops::Bound::Included(v) => o <= v,
+                std::ops::Bound::Excluded(v) => o < v,
+                std::ops::Bound::Unbounded => true,
+            });
+        self.relocs[start_idx..end_idx]
+            .iter()
+            .enumerate()
+            .map(|(i, (p, r))| (RelocIdx(i), *p, r))
+    }
+
     pub fn find_at(
         &self,
         offset: T::PtrSizeType,
-    ) -> impl Iterator<Item = &(T::PtrSizeType, T::Reloc)> {
-        match self.relocs.binary_search_by_key(&offset, |(v, _)| *v) {
-            Ok(ok) => {
-                let mut start = ok;
-                for (o, _) in self.relocs[..start].iter().rev() {
-                    if *o != offset {
-                        break;
-                    }
-                    start -= 1;
-                }
-                let mut end = ok;
-                for (o, _) in self.relocs[end..].iter() {
-                    if *o != offset {
-                        break;
-                    }
-                    end += 1;
-                }
-                self.relocs[start..end].iter()
-            }
-            Err(_) => [].iter(),
-        }
+    ) -> impl ExactSizeIterator<Item = (RelocIdx, T::PtrSizeType, &T::Reloc)> {
+        self.find_range(offset..=offset)
     }
 }
