@@ -11,6 +11,7 @@ pub mod reloc;
 pub mod section;
 pub mod str;
 pub mod sym;
+pub mod seder;
 
 use reloc::*;
 use section::*;
@@ -123,27 +124,6 @@ impl<T: TranslationUnitMachine> TranslationUnit<T> {
         self.get_mut(section)
     }
 
-    fn sym_checked(
-        &mut self,
-        name: &str,
-        node: Option<NodeOwned>,
-        node_kind: impl Fn(&mut SymbolDbg) -> &mut Option<NodeOwned>,
-        err: impl FnOnce(Option<NodeOwned>) -> SymbolError,
-    ) -> Result<&mut Symbol<T::PtrSizeType>, SymbolError> {
-        let symbol_idx = self.symbols.resolve_or_make(self.str_table.resolve(name));
-
-        let mut dbg = self.symbols.symbol_dbg_entry(symbol_idx);
-        if let Entry::Occupied(entry) = &mut dbg
-            && let Some(declaration) = node_kind(entry.get_mut())
-        {
-            return Err(err(Some(declaration.clone())));
-        }
-        if let Some(node) = node {
-            *node_kind(dbg.or_default()) = Some(node);
-        }
-        Ok(self.symbols.symbol_mut(symbol_idx))
-    }
-
     pub fn resolve_or_make_symbol(&mut self, name: &str) -> SymbolIdx {
         self.symbols.resolve_or_make(self.str_table.resolve(name))
     }
@@ -166,7 +146,9 @@ impl<T: TranslationUnitMachine> TranslationUnit<T> {
         ty: SymbolType,
         node: Option<NodeOwned>,
     ) -> Result<(), SymbolError> {
-        let symbol = self.sym_checked(
+        let (_, symbol) = sym_checked(
+            &mut self.symbols,
+            &mut self.str_table,
             name,
             node,
             |sym| &mut sym.ty,
@@ -182,7 +164,9 @@ impl<T: TranslationUnitMachine> TranslationUnit<T> {
         size: T::PtrSizeType,
         node: Option<NodeOwned>,
     ) -> Result<(), SymbolError> {
-        let symbol = self.sym_checked(
+        let (_, symbol) = sym_checked(
+            &mut self.symbols,
+            &mut self.str_table,
             name,
             node,
             |sym| &mut sym.size,
@@ -198,38 +182,15 @@ impl<T: TranslationUnitMachine> TranslationUnit<T> {
         visibility: SymbolVisibility,
         node: Option<NodeOwned>,
     ) -> Result<(), SymbolError> {
-        let symbol = self.sym_checked(
+        let (_, symbol) = sym_checked(
+            &mut self.symbols,
+            &mut self.str_table,
             name,
             node,
             |sym| &mut sym.visibility,
             SymbolError::VisibilityPreviouslyDeclared,
         )?;
         symbol.visibility = visibility;
-        Ok(())
-    }
-
-    pub fn bind_symbol(
-        &mut self,
-        name: &str,
-        section: &str,
-        node: Option<NodeOwned>,
-    ) -> Result<(), SymbolError> {
-        let section_idx = self.resolve_or_make(section);
-        let current_offset = self.get(section_idx).data.current_offset();
-        let symbol = self.sym_checked(
-            name,
-            node,
-            |sym| &mut sym.definition,
-            SymbolError::PreviouslyBound,
-        )?;
-        if symbol.section.is_some() {
-            return Err(SymbolError::PreviouslyBound(None));
-        }
-        symbol.section = Some(section_idx);
-        symbol.offset = current_offset;
-        if symbol.ty == SymbolType::Unresolved {
-            symbol.ty = SymbolType::Notype;
-        }
         Ok(())
     }
 
@@ -275,4 +236,53 @@ impl<'a, T: TranslationUnitMachine> SectionMut<'a, T> {
         let offset = self.section.data.current_offset();
         self.section.debug_info.emit_comment_dbg(offset, comment)
     }
+
+    pub fn bind_symbol(
+        &mut self,
+        name: &str,
+        node: Option<NodeOwned>,
+    ) -> Result<(), SymbolError> {
+        let current_offset = self.section.data.current_offset();
+        let (symbol_idx, symbol) = sym_checked(
+            self.symbols,
+            self.str_table,
+            name,
+            node,
+            |sym| &mut sym.definition,
+            SymbolError::PreviouslyBound,
+        )?;
+        if symbol.section.is_some() {
+            return Err(SymbolError::PreviouslyBound(None));
+        }
+        symbol.section = Some(self.section_idx);
+        symbol.offset = current_offset;
+        if symbol.ty == SymbolType::Unresolved {
+            symbol.ty = SymbolType::Notype;
+        }
+        self.section.bind_symbol(symbol_idx, current_offset);
+        Ok(())
+    }
+}
+
+
+fn sym_checked<'a, T: PrimInt>(
+    symbols: &'a mut Symbols<T>,
+    str_table: &'a mut StringTable,
+    name: &str,
+    node: Option<NodeOwned>,
+    node_kind: impl Fn(&mut SymbolDbg) -> &mut Option<NodeOwned>,
+    err: impl FnOnce(Option<NodeOwned>) -> SymbolError,
+) -> Result<(SymbolIdx, &'a mut Symbol<T>), SymbolError> {
+    let symbol_idx = symbols.resolve_or_make(str_table.resolve(name));
+
+    let mut dbg = symbols.symbol_dbg_entry(symbol_idx);
+    if let Entry::Occupied(entry) = &mut dbg
+        && let Some(declaration) = node_kind(entry.get_mut())
+    {
+        return Err(err(Some(declaration.clone())));
+    }
+    if let Some(node) = node {
+        *node_kind(dbg.or_default()) = Some(node);
+    }
+    Ok((symbol_idx, symbols.symbol_mut(symbol_idx)))
 }

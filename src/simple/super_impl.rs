@@ -403,7 +403,8 @@ impl<'a, T: SimpleAssemblyLanguage<'a>> crate::assembler::lang::AssemblyLanguage
         mut label: &'a str,
         node: NodeRef<'a>,
     ) {
-        if label.starts_with('.') {
+        let local = label.starts_with('.');
+        if local {
             if let Some(prev) = self.state_mut().expect_last_label(ctx.context, node) {
                 label = ctx.context.alloc_str(format!("{prev}{label}"))
             }
@@ -412,15 +413,12 @@ impl<'a, T: SimpleAssemblyLanguage<'a>> crate::assembler::lang::AssemblyLanguage
         }
 
         {
-            let section = self.state_mut().expect_section(ctx.context, node);
-            let node = ctx.context.node_to_owned(node);
-            let result = self
-                .state_mut()
-                .trans
-                .bind_symbol(label, section, Some(node.clone()));
+
+            let node_owned = ctx.context.node_to_owned(node);
+            let result = self.current_section_mut(ctx, node).bind_symbol(label, Some(node_owned.clone()));
 
             if let Err(err) = result {
-                ctx.context.report_owned(err.to_log_entry(label, node));
+                ctx.context.report_owned(err.to_log_entry(label, node_owned));
             }
         }
 

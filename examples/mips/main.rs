@@ -25,11 +25,12 @@ _start: .global; .type func;
     .loop:
         j .loop
 
-main:
+main: .global; .type func;
     la a0, message
     li a1, size(message)+3
 
     li v0, 1 // print syscall id
+    // actually do the call
     syscall
     ret
 
@@ -41,8 +42,8 @@ main:
     main_fn_ptr: .values main; .size; .type obj; .global
 
 .section .stack 
-    _stack_end: .global; .align 1<<12; .space 1<<12
-    _stack_start: .size 1<<12; .global
+    // _stack_end: .global; .align 1<<12; .space 1<<12
+    // _stack_start: .size 1<<12; .global
     "#;
     let res = assembler::assemble(
         &Default::default(),

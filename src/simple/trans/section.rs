@@ -1,5 +1,6 @@
 use crate::simple::trans::{
     TranslationUnitMachine, data::Data, dbg::DebugInfo, reloc::Relocations, str::StrIdx,
+    sym::SymbolIdx,
 };
 
 pub struct Section<T: TranslationUnitMachine + ?Sized> {
@@ -11,6 +12,7 @@ pub struct Section<T: TranslationUnitMachine + ?Sized> {
     pub(crate) data: Data<T::PtrSizeType>,
     pub(crate) relocations: Relocations<T>,
     pub(crate) debug_info: DebugInfo<T::PtrSizeType>,
+    symbols: Vec<(T::PtrSizeType, SymbolIdx)>,
 }
 
 impl<T: TranslationUnitMachine> std::fmt::Debug for Section<T> {
@@ -24,6 +26,7 @@ impl<T: TranslationUnitMachine> std::fmt::Debug for Section<T> {
             .field("readable", &self.readable)
             .field("executable", &self.executable)
             .field("writeable", &self.writeable)
+            .field("symbols", &self.symbols)
             .finish()
     }
 }
@@ -39,6 +42,7 @@ impl<T: TranslationUnitMachine + ?Sized> Clone for Section<T> {
             readable: self.readable,
             executable: self.executable,
             writeable: self.writeable,
+            symbols: self.symbols.clone(),
         }
     }
 }
@@ -51,6 +55,7 @@ impl<T: TranslationUnitMachine + ?Sized> Section<T> {
             offset: num_traits::zero(),
             relocations: Relocations::new(),
             debug_info: DebugInfo::new(),
+            symbols: Vec::new(),
             readable: true,
             executable: false,
             writeable: false,
@@ -71,5 +76,32 @@ impl<T: TranslationUnitMachine + ?Sized> Section<T> {
 
     pub fn debug_info(&self) -> &DebugInfo<T::PtrSizeType> {
         &self.debug_info
+    }
+
+    pub fn get_symbols(
+        &self,
+        range: impl std::ops::RangeBounds<T::PtrSizeType>,
+    ) -> &[(T::PtrSizeType, SymbolIdx)] {
+        let start_idx = self
+            .symbols
+            .partition_point(|(off, _)| match range.start_bound() {
+                std::ops::Bound::Included(v) => *off < *v,
+                std::ops::Bound::Excluded(v) => *off <= *v,
+                std::ops::Bound::Unbounded => false,
+            });
+
+        let end_idx = self
+            .symbols
+            .partition_point(|(off, _)| match range.end_bound() {
+                std::ops::Bound::Included(v) => *off <= *v,
+                std::ops::Bound::Excluded(v) => *off < *v,
+                std::ops::Bound::Unbounded => true,
+            });
+        &self.symbols[start_idx..end_idx]
+    }
+    
+    pub(crate) fn bind_symbol(&mut self, section_idx: SymbolIdx, offset: T::PtrSizeType) {
+        let (Ok(idx)|Err(idx)) = self.symbols.binary_search_by_key(&offset, |(o, _)|*o);
+        self.symbols.insert(idx, (offset, section_idx));
     }
 }

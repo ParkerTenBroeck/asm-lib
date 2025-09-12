@@ -3,7 +3,7 @@ use crate::{
     expression::conversion::FromAsPrimitive,
     simple::trans::reloc::Reloc,
 };
-use num_traits::{AsPrimitive, PrimInt, WrappingAdd};
+use num_traits::{PrimInt, WrappingAdd};
 use std::fmt::{LowerHex, Write};
 
 use crate::simple::trans::{
@@ -75,7 +75,7 @@ impl<T: TranslationUnitMachine<PtrSizeType: LowerHex>> Section<T> {
                     reloc.display(f, trans)?;
                     if let Some(dbg) = self.debug_info.resolve_reloc_dbg(idx) {
                         let src = dbg.src_slice();
-                        write!(f, "\n{FAINT}   -definition: {dbg} -> {src:?}{RESET}",)?;
+                        write!(f, "\n{FAINT}   ^: def:  {dbg} -> {src:?}{RESET}",)?;
                     }
                     Ok(())
                 },
@@ -109,19 +109,25 @@ pub fn fmt_section_disassembly<
 
         let start = offset;
         let data_start = data_offset;
+        let data_end = data_offset.wrapping_add(&FromAsPrimitive::from_as(size));
 
-        for (_, comment) in section
-            .debug_info()
-            .resolve_comments(data_start..data_offset.wrapping_add(&FromAsPrimitive::from_as(size)))
-        {
-            writeln!(
-                f,
-                "{: >ptr_size$}    {FAINT}-comment {comment:?}{RESET}",
-                ""
-            )?;
+        for (_, symbol) in section.get_symbols(data_start..data_end){
+            if !matches!(trans.symbols.symbol(*symbol).visibility, crate::simple::trans::sym::SymbolVisibility::Local){
+                writeln!(f)?;
+                break;
+            }
+        }
+        for (offset, symbol) in section.get_symbols(data_start..data_end){
+            write!(f, "{offset:0>ptr_size$x}: ")?;
+            let name = trans.str_table.get(trans.symbols.symbol(*symbol).name()).unwrap_or_default();
+            writeln!(f, "<{}>", name.escape_debug())?;
         }
 
-        write!(f, "{offset:0>ptr_size$x}: ")?;
+        for (_, comment) in section.debug_info().resolve_comments(data_start..data_end) {
+            writeln!(f, "   {FAINT}v: comt: {comment:?}{RESET}")?;
+        }
+
+        write!(f, "{offset: >ptr_size$x}: ")?;
 
         for _ in 0..size {
             if let Some(byte) = iter.next() {
@@ -145,13 +151,17 @@ pub fn fmt_section_disassembly<
 
         let data_locs = section.debug_info.resolve_data_dbg(data_start..data_offset);
         for (i, dbg) in data_locs.iter().enumerate() {
+            if dbg.range.contains(&data_offset) && dbg.range.end != data_offset {
+                continue;
+            }
             let src = dbg.node.src_slice();
             writeln!(f)?;
-            if i+1 == data_locs.len(){
+            write!(f, "   {FAINT}")?;
+            if i + 1 == data_locs.len() {
                 write!(f, "{UNDERLINE}")?;
             }
-            write!(f, "{FAINT}   -definition: {} -> {src:?}{RESET}", dbg.node)?;           
-        }   
+            write!(f, "^: def:  {} -> {src:?}{RESET}", dbg.node)?;
+        }
 
         writeln!(f)?;
     }
@@ -162,7 +172,7 @@ pub fn fmt_section_disassembly<
 
 pub fn fmt_section_hex<T: TranslationUnitMachine<PtrSizeType: LowerHex> + ?Sized>(
     section: &Section<T>,
-    trans: &TranslationUnit<T>,
+    _: &TranslationUnit<T>,
     f: &mut impl std::fmt::Write,
 ) -> std::fmt::Result {
     let mut offset = 0;
@@ -245,19 +255,19 @@ impl<T: PrimInt + LowerHex> Symbol<T> {
         if let Some(dbg) = trans.symbols.get_symbol_dbg(idx) {
             if let Some(def) = &dbg.definition {
                 let src = def.src_slice();
-                write!(f, "\n{FAINT}   -definition: {def} -> {src:?}{RESET}",)?;
+                write!(f, "\n{FAINT}   ^: def:  {def} -> {src:?}{RESET}",)?;
             }
             if let Some(def) = &dbg.size {
                 let src = def.src_slice();
-                write!(f, "\n{FAINT}   -size: {def} -> {src:?}{RESET}")?;
+                write!(f, "\n{FAINT}   ^: size: {def} -> {src:?}{RESET}")?;
             }
             if let Some(def) = &dbg.ty {
                 let src = def.src_slice();
-                write!(f, "\n{FAINT}   -type: {def} -> {src:?}{RESET}")?;
+                write!(f, "\n{FAINT}   ^: type: {def} -> {src:?}{RESET}")?;
             }
             if let Some(def) = &dbg.visibility {
                 let src = def.src_slice();
-                write!(f, "\n{FAINT}   -visability: {def} -> {src:?}{RESET}")?;
+                write!(f, "\n{FAINT}   ^: vis:  {def} -> {src:?}{RESET}")?;
             }
         }
         Ok(())

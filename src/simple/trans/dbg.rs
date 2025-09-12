@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, fmt::Debug};
 
 use num_traits::PrimInt;
 
@@ -53,18 +53,21 @@ impl<T: PrimInt> DebugInfo<T> {
         self.relocs.get(&reloc_idx)
     }
 
-    pub fn resolve_data_dbg(&self, range: impl std::ops::RangeBounds<T>) -> &[DataDbg<T>] {
+    pub fn resolve_data_dbg(&self, range: impl std::ops::RangeBounds<T> + Debug) -> &[DataDbg<T>] {
         let start_idx = self.data.partition_point(|dbg| match range.start_bound() {
-            std::ops::Bound::Included(v) => *v < dbg.range.start,
-            std::ops::Bound::Excluded(v) => *v <= dbg.range.start,
+            std::ops::Bound::Included(start) => *start > dbg.range.start && *start >= dbg.range.end,
+            std::ops::Bound::Excluded(start) => {
+                *start >= dbg.range.start && *start >= dbg.range.end
+            }
             std::ops::Bound::Unbounded => false,
         });
 
         let end_idx = self.data.partition_point(|dbg| match range.end_bound() {
-            std::ops::Bound::Included(v) => *v <= dbg.range.end,
-            std::ops::Bound::Excluded(v) => *v < dbg.range.end,
+            std::ops::Bound::Included(end) => *end >= dbg.range.end || *end > dbg.range.start,
+            std::ops::Bound::Excluded(end) => *end > dbg.range.end || *end > dbg.range.start,
             std::ops::Bound::Unbounded => true,
         });
+
         &self.data[start_idx..end_idx]
     }
 
