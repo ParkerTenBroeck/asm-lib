@@ -413,12 +413,14 @@ impl<'a, T: SimpleAssemblyLanguage<'a>> crate::assembler::lang::AssemblyLanguage
         }
 
         {
-
             let node_owned = ctx.context.node_to_owned(node);
-            let result = self.current_section_mut(ctx, node).bind_symbol(label, Some(node_owned.clone()));
+            let result = self
+                .current_section_mut(ctx, node)
+                .bind_symbol(label, Some(node_owned.clone()));
 
             if let Err(err) = result {
-                ctx.context.report_owned(err.to_log_entry(label, node_owned));
+                ctx.context
+                    .report_owned(err.to_log_entry(label, node_owned));
             }
         }
 

@@ -1,5 +1,5 @@
 use assembler::{
-    LangCtx, Node, NodeRef,
+    Assembler, AssemblyLanguage, Context, LangCtx, Node, NodeRef,
     expression::args::{IndexedArg, RegArg},
     simple::{SimpleAssemblyLanguage, SimpleAssemblyLanguageBase},
 };
@@ -8,11 +8,126 @@ use crate::{
     MipsAssembler,
     args::{Immediate, ImmediateI16, ImmediateU16, ShiftConstant},
     indexed::MemoryIndex,
-    lang::InstructionKind,
+    label::{LabelExpr, LabelExprType, RelocPattern},
     opcodes::*,
     reg::Register,
-    trans::MipsReloc,
+    trans::{MipsReloc, MipsRelocCalc, MipsRelocPattern},
 };
+
+pub enum InstructionKind {
+    IdxSaveMem,
+    IdxLoadMem,
+    Branch,
+    Jump,
+    Lui,
+    ArithSigned,
+    ArithUnsigned,
+    La,
+}
+
+impl std::fmt::Display for InstructionKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::IdxSaveMem => write!(f, "save"),
+            Self::IdxLoadMem => write!(f, "load"),
+            Self::Branch => write!(f, "brance"),
+            Self::Jump => write!(f, "jump"),
+            Self::Lui => write!(f, "lui"),
+            Self::ArithSigned => write!(f, "arith_signed"),
+            Self::ArithUnsigned => write!(f, "arith_signed"),
+            Self::La => write!(f, "la"),
+        }
+    }
+}
+
+impl InstructionKind {
+    pub fn reloc<'a>(
+        &self,
+        ctx: Assembler<'a, '_, MipsAssembler<'a>>,
+        node: NodeRef<'a>,
+        label: LabelExpr<'a>,
+    ) -> Option<MipsReloc> {
+        let pattern = self.pattern(ctx.context, node, label.pattern)?;
+        let calculation = self.calculation(ctx, node, label.ty)?;
+        Some(MipsReloc {
+            pattern,
+            calculation,
+            offset: label.offset,
+            overflow: false,
+        })
+    }
+    pub fn pattern<'a>(
+        &self,
+        ctx: &mut Context<'a>,
+        node: NodeRef<'a>,
+        reloc: Option<RelocPattern>,
+    ) -> Option<MipsRelocPattern> {
+        Some(match (self, reloc) {
+            (InstructionKind::IdxSaveMem, None) => MipsRelocPattern::ImmI16,
+            (InstructionKind::IdxLoadMem, None) => MipsRelocPattern::ImmI16,
+            (InstructionKind::Branch, None) => MipsRelocPattern::BranchI16,
+            (InstructionKind::Jump, None) => MipsRelocPattern::JumpU26,
+            (InstructionKind::Lui, None | Some(RelocPattern::High)) => MipsRelocPattern::ImmH16,
+            (InstructionKind::Lui, Some(RelocPattern::Low)) => MipsRelocPattern::ImmU16,
+            (InstructionKind::ArithSigned, None | Some(RelocPattern::Low)) => {
+                MipsRelocPattern::ImmI16
+            }
+            (InstructionKind::ArithSigned, Some(RelocPattern::High)) => MipsRelocPattern::ImmH16,
+            (InstructionKind::ArithUnsigned, None | Some(RelocPattern::Low)) => {
+                MipsRelocPattern::ImmU16
+            }
+            (InstructionKind::ArithUnsigned, Some(RelocPattern::High)) => MipsRelocPattern::ImmH16,
+            (InstructionKind::La, None) => None?,
+
+            (_, Some(reloc)) => {
+                ctx.report_error(
+                    node,
+                    format!("Cannot use '{reloc}' pattern with '{self}' class instructions"),
+                );
+                None?
+            }
+        })
+    }
+    pub fn calculation<'a>(
+        &self,
+        mut ctx: Assembler<'a, '_, MipsAssembler<'a>>,
+        node: NodeRef<'a>,
+        reloc: LabelExprType<'a>,
+    ) -> Option<MipsRelocCalc> {
+        let pcrel = match self {
+            InstructionKind::Branch => true,
+            _ => false,
+        };
+        let reloc = reloc.reloc_type(&mut ctx, pcrel)?;
+        Some(match (self, reloc) {
+            (Self::Branch, MipsRelocCalc::Absolute(_)) => {
+                ctx.context.report_warning(
+                    node,
+                    format!("absolute address used with '{self}' class instruction"),
+                );
+                reloc
+            }
+            (Self::Branch, _) => reloc,
+            (Self::Jump, MipsRelocCalc::Absolute(_)) => reloc,
+            (Self::Jump, _) => {
+                ctx.context.report_warning(
+                    node,
+                    format!("non absolute address used with '{self}' class instruction"),
+                );
+                reloc
+            }
+            (
+                Self::La
+                | Self::ArithSigned
+                | Self::ArithUnsigned
+                | Self::Lui
+                | Self::IdxLoadMem
+                | Self::IdxSaveMem,
+                _,
+            ) => reloc,
+        })
+    }
+}
 
 impl<'a> MipsAssembler<'a> {
     pub(crate) fn instruction(
@@ -21,6 +136,22 @@ impl<'a> MipsAssembler<'a> {
         node: assembler::NodeRef<'a>,
         ins: u32,
     ) {
+        self.current_section_mut(ctx, node).data(
+            &ins.to_be_bytes(),
+            4,
+            Some(ctx.context.node_to_owned(node)),
+        );
+    }
+
+    pub(crate) fn instruction_reloc(
+        &mut self,
+        ctx: &mut assembler::LangCtx<'a, '_, Self>,
+        node: assembler::NodeRef<'a>,
+        ins: u32,
+        reloc: MipsReloc,
+    ) {
+        self.current_section_mut(ctx, node)
+            .reloc(reloc, Some(ctx.context.node_to_owned(node)));
         self.current_section_mut(ctx, node).data(
             &ins.to_be_bytes(),
             4,
@@ -275,96 +406,81 @@ impl<'a> MipsAssembler<'a> {
         use crate::label::LabelExprType as LET;
         match kind {
             InstructionKind::La => match immediate {
-                Immediate::SignedConstant(signed)
-                    if i16::MIN as i32 <= signed && signed <= i16::MAX as i32 =>
-                {
-                    self.instruction(
-                        ctx,
-                        node,
-                        Opcodes::Addi as u32 + imm_16(signed as u32) + rt.rt(),
-                    );
-                }
-                Immediate::SignedConstant(signed) if signed <= u16::MAX as i32 => {
-                    self.instruction(
-                        ctx,
-                        node,
-                        Opcodes::Ori as u32 + imm_16(signed as u32) + rt.rt(),
-                    );
-                }
                 Immediate::SignedConstant(signed) => {
-                    self.instruction(
-                        ctx,
-                        node,
-                        Opcodes::Lui as u32 + imm_16(signed as u32 >> 16) + rt.rt(),
-                    );
-                    if signed as u16 != 0 {
-                        self.instruction(
-                            ctx,
-                            node,
-                            Opcodes::Ori as u32 + imm_16(signed as u32) + rt.rt(),
-                        );
+                    let slice: &[u32] = match signed {
+                        -0x8000..=0x7FFF => &[Opcodes::Addi as u32
+                            + MRP::ImmI16.generate(signed as u32)
+                            + rt.rt()],
+                        _ if signed & 0xFFFF == 0 => {
+                            &[Opcodes::Lui as u32 + MRP::ImmH16.generate(signed as u32) + rt.rt()]
+                        }
+                        _ => &[
+                            Opcodes::Lui as u32 + MRP::ImmH16.generate(signed as u32) + rt.rt(),
+                            Opcodes::Ori as u32 + MRP::ImmU16.generate(signed as u32) + rt.rt(),
+                        ],
+                    };
+                    for ins in slice {
+                        self.instruction(ctx, node, *ins);
                     }
-                }
-                Immediate::UnsignedConstant(unsigned) if unsigned <= u16::MAX as u32 => {
-                    self.instruction(ctx, node, Opcodes::Ori as u32 + imm_16(unsigned) + rt.rt());
                 }
                 Immediate::UnsignedConstant(unsigned) => {
-                    self.instruction(
-                        ctx,
-                        node,
-                        Opcodes::Lui as u32 + imm_16(unsigned >> 16) + rt.rt(),
-                    );
-                    if unsigned as u16 != 0 {
-                        self.instruction(
-                            ctx,
-                            node,
-                            Opcodes::Ori as u32 + imm_16(unsigned) + rt.rt(),
-                        );
+                    let slice: &[u32] = match unsigned {
+                        0..=0xFFFF => {
+                            &[Opcodes::Ori as u32 + MRP::ImmU16.generate(unsigned) + rt.rt()]
+                        }
+                        0x10000..=0xFFFF_FFFF if unsigned & 0xFFFF == 0 => {
+                            &[Opcodes::Lui as u32 + MRP::ImmH16.generate(unsigned) + rt.rt()]
+                        }
+                        0x10000..=0xFFFF_FFFF => &[
+                            Opcodes::Lui as u32 + MRP::ImmH16.generate(unsigned) + rt.rt(),
+                            Opcodes::Ori as u32 + MRP::ImmU16.generate(unsigned) + rt.rt(),
+                        ],
+                    };
+                    for ins in slice {
+                        self.instruction(ctx, node, *ins);
                     }
                 }
-                Immediate::Label(label_expr) => {
-                    if let Some(calculation) = label_expr.ty.reloc_type(ctx.asm(self), false) {
-                        if label_expr.pattern.is_some() {
-                            ctx.context
-                                .report_error(node, "no pattern can be set for la or li");
-                        }
-                        self.current_section_mut(ctx, node).reloc(
-                            MipsReloc {
-                                pattern: MRP::ImmH16,
-                                calculation,
-                                offset: label_expr.offset,
-                                overflow: false,
-                            },
-                            Some(ctx.context.node_to_owned(node)),
-                        );
-                        self.instruction(ctx, node, Opcodes::Lui as u32 + rt.rt());
-                        self.current_section_mut(ctx, node).reloc(
-                            MipsReloc {
-                                pattern: MRP::ImmU16,
-                                calculation,
-                                offset: label_expr.offset,
-                                overflow: false,
-                            },
-                            Some(ctx.context.node_to_owned(node)),
-                        );
-                        self.instruction(ctx, node, Opcodes::Ori as u32 + rt.rt());
-                    } else {
-                        self.instruction(ctx, node, Opcodes::Lui as u32 + rt.rt());
-                        self.instruction(ctx, node, Opcodes::Ori as u32 + rt.rt());
-                    }
+                Immediate::Label(label) => {
+                    let Some(calculation) = kind.calculation(ctx.asm(self), node, label.ty) else {
+                        return;
+                    };
+                    _ = kind.pattern(ctx.context, node, label.pattern);
+                    self.instruction_reloc(
+                        ctx,
+                        node,
+                        Opcodes::Lui as u32 + rt.rt(),
+                        MipsReloc::without_overflow(MRP::ImmH16, calculation, label.offset),
+                    );
+                    self.instruction_reloc(
+                        ctx,
+                        node,
+                        Opcodes::Ori as u32 + rt.rt(),
+                        MipsReloc::with_overflow(MRP::ImmU16, calculation, label.offset),
+                    );
                 }
             },
             InstructionKind::IdxSaveMem | InstructionKind::IdxLoadMem => {
                 self.instruction(ctx, node, instruction as u32 + rs.rs() + rt.rt());
             }
-            InstructionKind::Branch => {
-                match immediate {
-                    Immediate::SignedConstant(_) => todo!(),
-                    Immediate::UnsignedConstant(_) => todo!(),
-                    Immediate::Label(label_expr) => todo!(),
+            InstructionKind::Branch => match immediate {
+                Immediate::SignedConstant(signed) => {
+                    let imm = MRP::BranchI16.checked_signed(ctx.context, node, signed);
+                    self.instruction(ctx, node, instruction as u32 + rs.rs() + rt.rt() + imm);
                 }
-                self.instruction(ctx, node, instruction as u32 + rs.rs() + rt.rt());
-            }
+                Immediate::UnsignedConstant(unsigned) => {
+                    let imm = MRP::BranchI16.checked_unsigned(ctx.context, node, unsigned);
+                    self.instruction(ctx, node, instruction as u32 + rs.rs() + rt.rt() + imm);
+                }
+                Immediate::Label(label) => {
+                    let Some(reloc) = kind.reloc(ctx.asm(self), node, label) else {return};
+                    self.instruction_reloc(
+                        ctx,
+                        node,
+                        instruction as u32 + rs.rs() + rt.rt(),
+                        reloc,
+                    );
+                }
+            },
             InstructionKind::Lui => {
                 self.instruction(ctx, node, instruction as u32 + rs.rs() + rt.rt());
             }
@@ -394,46 +510,31 @@ impl<'a> MipsAssembler<'a> {
                             MRC::Align(self.state_mut().trans.resolve_or_make_symbol(label.ident))
                         }
                         LET::Sub(lhs, rhs) => {
-                            ctx.context.report_warning(node, format!("jump instruction target '{l}' defined as sub when jump requires absolute"));
+                            // ctx.context.report_warning(node, format!("jump instruction target '{l}' defined as sub when jump requires absolute"));
                             MRC::Sub(
                                 self.state_mut().trans.resolve_or_make_symbol(lhs.ident),
                                 self.state_mut().trans.resolve_or_make_symbol(rhs.ident),
                             )
                         }
                     };
-                    self.current_section_mut(ctx, node).reloc(
-                        MipsReloc {
-                            pattern: MRP::JumpU26,
-                            calculation,
-                            offset: l.offset,
-                            overflow: false,
-                        },
-                        Some(ctx.context.node_to_owned(node)),
+                    self.instruction_reloc(
+                        ctx,
+                        node,
+                        instruction as u32 + rs.rs() + rt.rt(),
+                        MipsReloc::without_overflow(MRP::JumpU26, calculation, l.offset),
                     );
-                    self.instruction(ctx, node, instruction as u32 + rs.rs() + rt.rt());
                 }
                 Immediate::SignedConstant(v) => {
                     if v.is_negative() {
                         ctx.context
                             .report_warning(node, "negative constant used in jump instruction");
                     }
-                    self.instruction(
-                        ctx,
-                        node,
-                        instruction as u32 + rs.rs() + rt.rt() + imm_26(v as u32 >> 2),
-                    );
-                }
-                Immediate::UnsignedConstant(v) if v > 0x3FFFFFF => {
-                    ctx.context
-                        .report_warning(node, "constant cannot fit in 26 bits");
-                    self.instruction(ctx, node, instruction as u32);
+                    let imm = MRP::JumpU26.checked_signed(ctx.context, node, v);
+                    self.instruction(ctx, node, instruction as u32 + rs.rs() + rt.rt() + imm);
                 }
                 Immediate::UnsignedConstant(v) => {
-                    self.instruction(
-                        ctx,
-                        node,
-                        instruction as u32 + rs.rs() + rt.rt() + imm_26(v >> 2),
-                    );
+                    let imm = MRP::JumpU26.checked_unsigned(ctx.context, node, v);
+                    self.instruction(ctx, node, instruction as u32 + rs.rs() + rt.rt() + imm);
                 }
             },
         }

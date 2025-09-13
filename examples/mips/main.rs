@@ -29,12 +29,14 @@ main: .global; .type func;
     la a0, message
     li a1, size(message)+3
 
+    j pcrel(meow)
+
     li v0, 1 // print syscall id
     // actually do the call
     syscall
     ret
 
-    .size; .type func
+    .size;
 
 .rodata
     message: .string "Hello, World!"; .size; .type obj; .global

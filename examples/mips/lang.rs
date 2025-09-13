@@ -26,17 +26,6 @@ impl<'a> Default for MipsAssembler<'a> {
     }
 }
 
-pub enum InstructionKind {
-    IdxSaveMem,
-    IdxLoadMem,
-    Branch,
-    Jump,
-    Lui,
-    ArithSigned,
-    ArithUnsigned,
-    La,
-}
-
 impl<'a> MipsAssembler<'a> {
     pub fn new() -> Self {
         Self {
@@ -118,7 +107,7 @@ impl<'a> SimpleAssemblyLanguage<'a> for MipsAssembler<'a> {
         match value {
             Value::Constant(constant) => self.add_constant_data(ctx, constant, node),
             Value::Label(l) => {
-                let Some(calculation) = l.ty.reloc_type(ctx.asm(self), false) else {
+                let Some(calculation) = l.ty.reloc_type(&mut ctx.asm(self), false) else {
                     return;
                 };
                 let (pattern, constant) = match l.pattern {

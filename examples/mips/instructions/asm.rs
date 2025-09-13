@@ -4,8 +4,8 @@ use assembler::{
 };
 
 use crate::{
-    MipsAssembler, args::Immediate, indexed::MemoryIndex, lang::InstructionKind, opcodes::Opcodes,
-    reg::Register,
+    MipsAssembler, args::Immediate, indexed::MemoryIndex, instructions::builder::InstructionKind,
+    opcodes::Opcodes, reg::Register,
 };
 
 impl<'a> MipsAssembler<'a> {

@@ -111,15 +111,21 @@ pub fn fmt_section_disassembly<
         let data_start = data_offset;
         let data_end = data_offset.wrapping_add(&FromAsPrimitive::from_as(size));
 
-        for (_, symbol) in section.get_symbols(data_start..data_end){
-            if !matches!(trans.symbols.symbol(*symbol).visibility, crate::simple::trans::sym::SymbolVisibility::Local){
+        for (_, symbol) in section.get_symbols(data_start..data_end) {
+            if !matches!(
+                trans.symbols.symbol(*symbol).visibility,
+                crate::simple::trans::sym::SymbolVisibility::Local
+            ) {
                 writeln!(f)?;
                 break;
             }
         }
-        for (offset, symbol) in section.get_symbols(data_start..data_end){
+        for (offset, symbol) in section.get_symbols(data_start..data_end) {
             write!(f, "{offset:0>ptr_size$x}: ")?;
-            let name = trans.str_table.get(trans.symbols.symbol(*symbol).name()).unwrap_or_default();
+            let name = trans
+                .str_table
+                .get(trans.symbols.symbol(*symbol).name())
+                .unwrap_or_default();
             writeln!(f, "<{}>", name.escape_debug())?;
         }
 

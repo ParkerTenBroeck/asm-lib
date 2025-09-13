@@ -1,12 +1,18 @@
-use assembler::simple::trans::{
-    TranslationUnit, TranslationUnitMachine,
-    display::{RightPad, fmt_section_disassembly},
-    reloc::Reloc,
-    section::Section,
-    sym::SymbolIdx,
+use assembler::{
+    Context, NodeRef,
+    simple::trans::{
+        TranslationUnit, TranslationUnitMachine,
+        display::{RightPad, fmt_section_disassembly},
+        reloc::Reloc,
+        section::Section,
+        sym::SymbolIdx,
+    },
 };
 
-use crate::reg::Register;
+use crate::{
+    opcodes::{imm_16, imm_26},
+    reg::Register,
+};
 
 pub struct MipsTranslationUnit;
 
@@ -132,7 +138,7 @@ impl TranslationUnitMachine for MipsTranslationUnit {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct MipsReloc {
     pub pattern: MipsRelocPattern,
     pub calculation: MipsRelocCalc,
@@ -140,7 +146,35 @@ pub struct MipsReloc {
     pub overflow: bool,
 }
 
-#[derive(Debug, Clone)]
+impl MipsReloc {
+    pub fn with_overflow(
+        pattern: MipsRelocPattern,
+        calculation: MipsRelocCalc,
+        offset: i32,
+    ) -> Self {
+        Self {
+            pattern,
+            calculation,
+            offset,
+            overflow: true,
+        }
+    }
+
+    pub fn without_overflow(
+        pattern: MipsRelocPattern,
+        calculation: MipsRelocCalc,
+        offset: i32,
+    ) -> Self {
+        Self {
+            pattern,
+            calculation,
+            offset,
+            overflow: false,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
 pub enum MipsRelocPattern {
     JumpU26,
     BranchI16,
@@ -153,18 +187,131 @@ pub enum MipsRelocPattern {
     U32,
 }
 
-impl MipsRelocPattern {
-    pub fn checked_signed(&self) -> u32 {
+impl std::fmt::Display for MipsRelocPattern {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            MipsRelocPattern::JumpU26 => todo!(),
-            MipsRelocPattern::BranchI16 => todo!(),
-            MipsRelocPattern::ImmI16 => todo!(),
-            MipsRelocPattern::ImmU16 => todo!(),
-            MipsRelocPattern::ImmH16 => todo!(),
-            MipsRelocPattern::U8 => todo!(),
-            MipsRelocPattern::U16 => todo!(),
-            MipsRelocPattern::U32 => todo!(),
+            MipsRelocPattern::JumpU26 => write!(f, "jump_u26"),
+            MipsRelocPattern::BranchI16 => write!(f, "branch_i16"),
+            MipsRelocPattern::ImmI16 => write!(f, "imm_i16"),
+            MipsRelocPattern::ImmU16 => write!(f, "imm_u16"),
+            MipsRelocPattern::ImmH16 => write!(f, "imm_h16"),
+            MipsRelocPattern::U8 => write!(f, "u8"),
+            MipsRelocPattern::U16 => write!(f, "u16"),
+            MipsRelocPattern::U32 => write!(f, "u32"),
         }
+    }
+}
+
+impl MipsRelocPattern {
+    pub fn generate(&self, value: u32) -> u32 {
+        match self {
+            MipsRelocPattern::JumpU26 => imm_26(value >> 2),
+            MipsRelocPattern::BranchI16 => imm_16(value >> 2),
+            MipsRelocPattern::ImmI16 => imm_16(value),
+            MipsRelocPattern::ImmU16 => imm_16(value),
+            MipsRelocPattern::ImmH16 => imm_16(value >> 16),
+            MipsRelocPattern::U8 => value & 0xFF,
+            MipsRelocPattern::U16 => value & 0xFFFF,
+            MipsRelocPattern::U32 => value,
+        }
+    }
+    pub fn checked_unsigned<'a>(
+        &self,
+        ctx: &mut Context<'a>,
+        node: NodeRef<'a>,
+        value: u32,
+    ) -> u32 {
+        match self {
+            // Self::JumpU26 if !(0..=0x3FFFFFF).contains(&(value >> 2)) => {
+            //     ctx.report_error(
+            //         node,
+            //         format!("value is out of range for '{self}' relocation: '{value}'"),
+            //     );
+            // }
+            Self::BranchI16
+                if !(i16::MAX as i32..=i16::MIN as i32).contains(&(value as i32 >> 2)) =>
+            {
+                ctx.report_error(
+                    node,
+                    format!("value is out of range for '{self}' relocation: '{value}'"),
+                );
+            }
+            Self::ImmI16 if !(i16::MAX as i32..=i16::MIN as i32).contains(&(value as i32)) => {
+                ctx.report_error(
+                    node,
+                    format!("value is out of range for '{self}' relocation: '{value}'"),
+                );
+            }
+            Self::ImmU16 if !(0..=u16::MIN as u32).contains(&(value)) => {
+                ctx.report_error(
+                    node,
+                    format!("value is out of range for '{self}' relocation: '{value}'"),
+                );
+            }
+            Self::ImmH16 if value & 0xFFFF != 0 => {
+                ctx.report_error(
+                    node,
+                    format!("value is out of range for '{self}' relocation: '{value}'"),
+                );
+            }
+            Self::U8 if value & !0xFF != 0 => {
+                ctx.report_error(
+                    node,
+                    format!("value is out of range for '{self}' relocation: '{value}'"),
+                );
+            }
+            Self::U16 if value & !0xFF != 0 => {
+                ctx.report_error(
+                    node,
+                    format!("value is out of range for '{self}' relocation: '{value}'"),
+                );
+            }
+            _ => {}
+        }
+        self.generate(value)
+    }
+
+    pub fn checked_signed<'a>(&self, ctx: &mut Context<'a>, node: NodeRef<'a>, value: i32) -> u32 {
+        match self {
+            Self::BranchI16 if !(i16::MAX as i32..=i16::MIN as i32).contains(&(value >> 2)) => {
+                ctx.report_error(
+                    node,
+                    format!("value is out of range for '{self}' relocation: '{value}'"),
+                );
+            }
+            Self::ImmI16 if !(i16::MAX as i32..=i16::MIN as i32).contains(&value) => {
+                ctx.report_error(
+                    node,
+                    format!("value is out of range for '{self}' relocation: '{value}'"),
+                );
+            }
+            Self::ImmU16 if !(0..=u16::MIN as i32).contains(&value) => {
+                ctx.report_error(
+                    node,
+                    format!("value is out of range for '{self}' relocation: '{value}'"),
+                );
+            }
+            Self::ImmH16 if value & 0xFFFF != 0 => {
+                ctx.report_error(
+                    node,
+                    format!("value is out of range for '{self}' relocation: '{value}'"),
+                );
+            }
+            Self::U8 if value & !0xFF != 0 => {
+                ctx.report_error(
+                    node,
+                    format!("value is out of range for '{self}' relocation: '{value}'"),
+                );
+            }
+            Self::U16 if value & !0xFF != 0 => {
+                ctx.report_error(
+                    node,
+                    format!("value is out of range for '{self}' relocation: '{value}'"),
+                );
+            }
+            _ => {}
+        }
+        self.generate(value as u32)
     }
 }
 
@@ -185,16 +332,7 @@ impl Reloc for MipsReloc {
         f: &mut impl std::fmt::Write,
         trans: &TranslationUnit<Self::Machine>,
     ) -> std::fmt::Result {
-        match self.pattern {
-            MipsRelocPattern::JumpU26 => write!(f, "jump_u26")?,
-            MipsRelocPattern::BranchI16 => write!(f, "branch_i16")?,
-            MipsRelocPattern::ImmI16 => write!(f, "imm_i16")?,
-            MipsRelocPattern::ImmU16 => write!(f, "imm_u16")?,
-            MipsRelocPattern::ImmH16 => write!(f, "imm_h16")?,
-            MipsRelocPattern::U8 => write!(f, "u8")?,
-            MipsRelocPattern::U16 => write!(f, "u16")?,
-            MipsRelocPattern::U32 => write!(f, "u32")?,
-        }
+        write!(f, "{}", self.pattern)?;
         if self.overflow {
             write!(f, "_overflow")?;
         }

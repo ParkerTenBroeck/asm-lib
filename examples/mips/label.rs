@@ -44,7 +44,7 @@ pub enum LabelExprType<'a> {
 impl<'a> LabelExprType<'a> {
     pub fn reloc_type(
         &self,
-        ctx: Assembler<'a, '_, MipsAssembler<'a>>,
+        ctx: &mut Assembler<'a, '_, MipsAssembler<'a>>,
         pcrel: bool,
     ) -> Option<MipsRelocCalc> {
         let trans = &mut ctx.lang.state_mut().trans;

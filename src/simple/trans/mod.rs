@@ -9,9 +9,9 @@ pub mod dbg;
 pub mod display;
 pub mod reloc;
 pub mod section;
+pub mod seder;
 pub mod str;
 pub mod sym;
-pub mod seder;
 
 use reloc::*;
 use section::*;
@@ -237,11 +237,7 @@ impl<'a, T: TranslationUnitMachine> SectionMut<'a, T> {
         self.section.debug_info.emit_comment_dbg(offset, comment)
     }
 
-    pub fn bind_symbol(
-        &mut self,
-        name: &str,
-        node: Option<NodeOwned>,
-    ) -> Result<(), SymbolError> {
+    pub fn bind_symbol(&mut self, name: &str, node: Option<NodeOwned>) -> Result<(), SymbolError> {
         let current_offset = self.section.data.current_offset();
         let (symbol_idx, symbol) = sym_checked(
             self.symbols,
@@ -263,7 +259,6 @@ impl<'a, T: TranslationUnitMachine> SectionMut<'a, T> {
         Ok(())
     }
 }
-
 
 fn sym_checked<'a, T: PrimInt>(
     symbols: &'a mut Symbols<T>,
