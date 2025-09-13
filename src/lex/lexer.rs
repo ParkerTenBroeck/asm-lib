@@ -489,6 +489,11 @@ impl<'a> Iterator for Lexer<'a> {
                         self.type_hint = TypeHint::Int;
                         self.state = State::NumericSuffix;
                     }
+                    Some(':') => {
+                        ret = Some(Ok(Token::Label(
+                            &self.str[self.start.offset..self.current.offset],
+                        )))
+                    }
                     _ => {
                         consume = false;
                         ret = Some(
@@ -527,6 +532,11 @@ impl<'a> Iterator for Lexer<'a> {
                         self.type_hint = TypeHint::Int;
                         self.state = State::NumericSuffix;
                     }
+                    Some(':') => {
+                        ret = Some(Ok(Token::Label(
+                            &self.str[self.start.offset..self.current.offset],
+                        )))
+                    }
                     _ => {
                         consume = false;
                         ret = Some(
@@ -550,6 +560,11 @@ impl<'a> Iterator for Lexer<'a> {
                         self.type_hint = TypeHint::Float;
                         self.state = State::NumericSuffix;
                     }
+                    Some(':') => {
+                        ret = Some(Ok(Token::Label(
+                            &self.str[self.start.offset..self.current.offset],
+                        )))
+                    }
                     _ => {
                         consume = false;
                         ret = Some(
@@ -570,6 +585,11 @@ impl<'a> Iterator for Lexer<'a> {
                         self.state = State::NumericDecimalNumberEPM;
                     }
                     Some('_') => {}
+                    Some(':') => {
+                        ret = Some(Ok(Token::Label(
+                            &self.str[self.start.offset..self.current.offset],
+                        )))
+                    }
                     _ => {
                         consume = false;
                         ret = Some(Err(LexError::EmptyExponent));
@@ -580,6 +600,11 @@ impl<'a> Iterator for Lexer<'a> {
                         self.state = State::NumericDecimalNumberENumber;
                     }
                     Some('_') => {}
+                    Some(':') => {
+                        ret = Some(Ok(Token::Label(
+                            &self.str[self.start.offset..self.current.offset],
+                        )))
+                    }
                     _ => {
                         consume = false;
                         ret = Some(Err(LexError::EmptyExponent));
@@ -591,6 +616,11 @@ impl<'a> Iterator for Lexer<'a> {
                         self.suffix_start = self.current.offset;
                         self.type_hint = TypeHint::Float;
                         self.state = State::NumericSuffix;
+                    }
+                    Some(':') => {
+                        ret = Some(Ok(Token::Label(
+                            &self.str[self.start.offset..self.current.offset],
+                        )))
                     }
                     _ => {
                         consume = false;
@@ -609,6 +639,11 @@ impl<'a> Iterator for Lexer<'a> {
                         self.state = State::NumericBase;
                     }
                     Some('_') => {}
+                    Some(':') => {
+                        ret = Some(Ok(Token::Label(
+                            &self.str[self.start.offset..self.current.offset],
+                        )))
+                    }
                     _ => {
                         consume = false;
                         ret = Some(Err(LexError::NoNumberAfterBasePrefix))
@@ -621,6 +656,11 @@ impl<'a> Iterator for Lexer<'a> {
                     Some('a'..='z' | 'A'..='Z') => {
                         self.suffix_start = self.current.offset;
                         self.state = State::NumericSuffix;
+                    }
+                    Some(':') => {
+                        ret = Some(Ok(Token::Label(
+                            &self.str[self.start.offset..self.current.offset],
+                        )))
                     }
                     _ => {
                         consume = false;
@@ -636,6 +676,11 @@ impl<'a> Iterator for Lexer<'a> {
                 },
                 State::NumericSuffix => match c {
                     Some('0'..='9' | 'a'..='z' | 'A'..='Z' | '_') => {}
+                    Some(':') => {
+                        ret = Some(Ok(Token::Label(
+                            &self.str[self.start.offset..self.current.offset],
+                        )))
+                    }
                     _ => {
                         consume = false;
                         let len = self.suffix_start - self.numeric_or_string_start;

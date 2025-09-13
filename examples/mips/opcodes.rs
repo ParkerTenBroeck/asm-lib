@@ -31,6 +31,7 @@ pub const fn imm_26(imm: u32) -> u32 {
 }
 
 #[repr(u32)]
+#[derive(Clone, Copy, Debug)]
 pub enum Opcodes {
     Add = opcode(0) | shamt(0) | funct(0b100000),
     Addu = opcode(0) | shamt(0) | funct(0b100001),

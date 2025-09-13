@@ -1,12 +1,11 @@
 use assembler::{
-    Assembler, AssemblyLanguage, Context, LangCtx, Node, NodeRef,
-    expression::args::{IndexedArg, RegArg},
-    simple::{SimpleAssemblyLanguage, SimpleAssemblyLanguageBase},
+    Assembler, Context, LangCtx, LogEntry, Node, NodeRef, expression::args::RegArg,
+    simple::SimpleAssemblyLanguageBase,
 };
 
 use crate::{
     MipsAssembler,
-    args::{Immediate, ImmediateI16, ImmediateU16, ShiftConstant},
+    args::{Immediate, ImmediateI16, ImmediateU16, IndexedCoerced, ShiftConstant},
     indexed::MemoryIndex,
     label::{LabelExpr, LabelExprType, RelocPattern},
     opcodes::*,
@@ -53,7 +52,8 @@ impl InstructionKind {
             pattern,
             calculation,
             offset: label.offset,
-            overflow: false,
+            overflow: matches!(label.pattern, Some(RelocPattern::High | RelocPattern::Low))
+                | matches!(pattern, MipsRelocPattern::ImmHighU16),
         })
     }
     pub fn pattern<'a>(
@@ -67,16 +67,20 @@ impl InstructionKind {
             (InstructionKind::IdxLoadMem, None) => MipsRelocPattern::ImmI16,
             (InstructionKind::Branch, None) => MipsRelocPattern::BranchI16,
             (InstructionKind::Jump, None) => MipsRelocPattern::JumpU26,
-            (InstructionKind::Lui, None | Some(RelocPattern::High)) => MipsRelocPattern::ImmH16,
+            (InstructionKind::Lui, None | Some(RelocPattern::High)) => MipsRelocPattern::ImmHighU16,
             (InstructionKind::Lui, Some(RelocPattern::Low)) => MipsRelocPattern::ImmU16,
             (InstructionKind::ArithSigned, None | Some(RelocPattern::Low)) => {
                 MipsRelocPattern::ImmI16
             }
-            (InstructionKind::ArithSigned, Some(RelocPattern::High)) => MipsRelocPattern::ImmH16,
+            (InstructionKind::ArithSigned, Some(RelocPattern::High)) => {
+                MipsRelocPattern::ImmHighU16
+            }
             (InstructionKind::ArithUnsigned, None | Some(RelocPattern::Low)) => {
                 MipsRelocPattern::ImmU16
             }
-            (InstructionKind::ArithUnsigned, Some(RelocPattern::High)) => MipsRelocPattern::ImmH16,
+            (InstructionKind::ArithUnsigned, Some(RelocPattern::High)) => {
+                MipsRelocPattern::ImmHighU16
+            }
             (InstructionKind::La, None) => None?,
 
             (_, Some(reloc)) => {
@@ -94,10 +98,7 @@ impl InstructionKind {
         node: NodeRef<'a>,
         reloc: LabelExprType<'a>,
     ) -> Option<MipsRelocCalc> {
-        let pcrel = match self {
-            InstructionKind::Branch => true,
-            _ => false,
-        };
+        let pcrel = matches!(self, InstructionKind::Branch);
         let reloc = reloc.reloc_type(&mut ctx, pcrel)?;
         Some(match (self, reloc) {
             (Self::Branch, MipsRelocCalc::Absolute(_)) => {
@@ -130,7 +131,7 @@ impl InstructionKind {
 }
 
 impl<'a> MipsAssembler<'a> {
-    pub(crate) fn instruction(
+    pub fn instruction(
         &mut self,
         ctx: &mut assembler::LangCtx<'a, '_, Self>,
         node: assembler::NodeRef<'a>,
@@ -143,7 +144,7 @@ impl<'a> MipsAssembler<'a> {
         );
     }
 
-    pub(crate) fn instruction_reloc(
+    pub fn instruction_reloc(
         &mut self,
         ctx: &mut assembler::LangCtx<'a, '_, Self>,
         node: assembler::NodeRef<'a>,
@@ -158,7 +159,7 @@ impl<'a> MipsAssembler<'a> {
             Some(ctx.context.node_to_owned(node)),
         );
     }
-    pub(crate) fn r_type_rd_rs_rt(
+    pub fn r_type_rd_rs_rt(
         &mut self,
         ctx: &mut assembler::LangCtx<'a, '_, Self>,
         node: assembler::NodeRef<'a>,
@@ -175,7 +176,7 @@ impl<'a> MipsAssembler<'a> {
                 + rt.unwrap_or_default().rt(),
         );
     }
-    pub(crate) fn r_type_rd_rs(
+    pub fn r_type_rd_rs(
         &mut self,
         ctx: &mut assembler::LangCtx<'a, '_, Self>,
         node: assembler::NodeRef<'a>,
@@ -190,7 +191,7 @@ impl<'a> MipsAssembler<'a> {
         );
     }
 
-    pub(crate) fn r_type_rs_rt(
+    pub fn r_type_rs_rt(
         &mut self,
         ctx: &mut assembler::LangCtx<'a, '_, Self>,
         node: assembler::NodeRef<'a>,
@@ -205,7 +206,7 @@ impl<'a> MipsAssembler<'a> {
         );
     }
 
-    pub(crate) fn r_type_rd(
+    pub fn r_type_rd(
         &mut self,
         ctx: &mut assembler::LangCtx<'a, '_, Self>,
         node: assembler::NodeRef<'a>,
@@ -216,7 +217,7 @@ impl<'a> MipsAssembler<'a> {
         self.instruction(ctx, node, opcode as u32 + rd.unwrap_or_default().rd());
     }
 
-    pub(crate) fn r_type_rs(
+    pub fn r_type_rs(
         &mut self,
         ctx: &mut assembler::LangCtx<'a, '_, Self>,
         node: assembler::NodeRef<'a>,
@@ -227,7 +228,7 @@ impl<'a> MipsAssembler<'a> {
         self.instruction(ctx, node, opcode as u32 + rs.unwrap_or_default().rs());
     }
 
-    pub(crate) fn r_type_rd_rs_const(
+    pub fn r_type_rd_rs_const(
         &mut self,
         ctx: &mut assembler::LangCtx<'a, '_, Self>,
         node: assembler::NodeRef<'a>,
@@ -243,7 +244,7 @@ impl<'a> MipsAssembler<'a> {
         );
     }
 
-    pub(crate) fn i_type_rt_rs_sign(
+    pub fn i_type_rt_rs_sign(
         &mut self,
         ctx: &mut assembler::LangCtx<'a, '_, Self>,
         node: assembler::NodeRef<'a>,
@@ -272,7 +273,7 @@ impl<'a> MipsAssembler<'a> {
         };
     }
 
-    pub(crate) fn i_type_rt_rs_unsign(
+    pub fn i_type_rt_rs_unsign(
         &mut self,
         ctx: &mut assembler::LangCtx<'a, '_, Self>,
         node: assembler::NodeRef<'a>,
@@ -301,7 +302,7 @@ impl<'a> MipsAssembler<'a> {
         };
     }
 
-    pub(crate) fn i_type(
+    pub fn i_type(
         &mut self,
         ctx: &mut assembler::LangCtx<'a, '_, Self>,
         node: assembler::NodeRef<'a>,
@@ -320,7 +321,7 @@ impl<'a> MipsAssembler<'a> {
         );
     }
 
-    pub(crate) fn i_type_rt(
+    pub fn i_type_rt(
         &mut self,
         ctx: &mut assembler::LangCtx<'a, '_, Self>,
         node: assembler::NodeRef<'a>,
@@ -332,7 +333,7 @@ impl<'a> MipsAssembler<'a> {
         self.with_immediate(ctx, node, kind, immediate, Register::ZERO, rt, opcode);
     }
 
-    pub(crate) fn i_type_rt_rs(
+    pub fn i_type_rt_rs(
         &mut self,
         ctx: &mut assembler::LangCtx<'a, '_, Self>,
         node: assembler::NodeRef<'a>,
@@ -345,16 +346,15 @@ impl<'a> MipsAssembler<'a> {
         self.with_immediate(ctx, node, kind, immediate, rs, rt, opcode);
     }
 
-    pub(crate) fn i_type_rt_idx(
+    pub fn i_type_rt_idx(
         &mut self,
         ctx: &mut LangCtx<'a, '_, Self>,
         node: NodeRef<'a>,
         kind: InstructionKind,
         opcode: Opcodes,
     ) {
-        let Node((RegArg(rt), IndexedArg(indexed)), node) = ctx.eval(self).coerced(node);
+        let Node((RegArg(rt), IndexedCoerced(indexed)), node) = ctx.eval(self).coerced(node);
         let rt = rt.unwrap_or_default();
-        let indexed = indexed.unwrap_or_default();
         let (rs, imm) = match indexed {
             MemoryIndex::LabelRegisterOffset(r, l) => (r, Immediate::Label(l)),
             MemoryIndex::RegisterOffset(r, i) => (r, Immediate::SignedConstant(i)),
@@ -362,7 +362,7 @@ impl<'a> MipsAssembler<'a> {
         self.with_immediate(ctx, node, kind, imm, rs, rt, opcode);
     }
 
-    pub(crate) fn j_type(
+    pub fn j_type(
         &mut self,
         ctx: &mut assembler::LangCtx<'a, '_, Self>,
         node: assembler::NodeRef<'a>,
@@ -380,7 +380,7 @@ impl<'a> MipsAssembler<'a> {
         );
     }
 
-    pub(crate) fn no_args(
+    pub fn no_args(
         &mut self,
         ctx: &mut assembler::LangCtx<'a, '_, Self>,
         node: assembler::NodeRef<'a>,
@@ -390,7 +390,8 @@ impl<'a> MipsAssembler<'a> {
         self.instruction(ctx, node, instruction);
     }
 
-    pub(crate) fn with_immediate(
+    #[allow(clippy::too_many_arguments)]
+    pub fn with_immediate(
         &mut self,
         ctx: &mut assembler::LangCtx<'a, '_, Self>,
         node: assembler::NodeRef<'a>,
@@ -400,10 +401,7 @@ impl<'a> MipsAssembler<'a> {
         rt: Register,
         instruction: Opcodes,
     ) {
-        use crate::trans::MipsRelocCalc as MRC;
         use crate::trans::MipsRelocPattern as MRP;
-
-        use crate::label::LabelExprType as LET;
         match kind {
             InstructionKind::La => match immediate {
                 Immediate::SignedConstant(signed) => {
@@ -411,11 +409,11 @@ impl<'a> MipsAssembler<'a> {
                         -0x8000..=0x7FFF => &[Opcodes::Addi as u32
                             + MRP::ImmI16.generate(signed as u32)
                             + rt.rt()],
-                        _ if signed & 0xFFFF == 0 => {
-                            &[Opcodes::Lui as u32 + MRP::ImmH16.generate(signed as u32) + rt.rt()]
-                        }
+                        _ if signed & 0xFFFF == 0 => &[Opcodes::Lui as u32
+                            + MRP::ImmHighU16.generate(signed as u32)
+                            + rt.rt()],
                         _ => &[
-                            Opcodes::Lui as u32 + MRP::ImmH16.generate(signed as u32) + rt.rt(),
+                            Opcodes::Lui as u32 + MRP::ImmHighU16.generate(signed as u32) + rt.rt(),
                             Opcodes::Ori as u32 + MRP::ImmU16.generate(signed as u32) + rt.rt(),
                         ],
                     };
@@ -429,10 +427,10 @@ impl<'a> MipsAssembler<'a> {
                             &[Opcodes::Ori as u32 + MRP::ImmU16.generate(unsigned) + rt.rt()]
                         }
                         0x10000..=0xFFFF_FFFF if unsigned & 0xFFFF == 0 => {
-                            &[Opcodes::Lui as u32 + MRP::ImmH16.generate(unsigned) + rt.rt()]
+                            &[Opcodes::Lui as u32 + MRP::ImmHighU16.generate(unsigned) + rt.rt()]
                         }
                         0x10000..=0xFFFF_FFFF => &[
-                            Opcodes::Lui as u32 + MRP::ImmH16.generate(unsigned) + rt.rt(),
+                            Opcodes::Lui as u32 + MRP::ImmHighU16.generate(unsigned) + rt.rt(),
                             Opcodes::Ori as u32 + MRP::ImmU16.generate(unsigned) + rt.rt(),
                         ],
                     };
@@ -449,7 +447,7 @@ impl<'a> MipsAssembler<'a> {
                         ctx,
                         node,
                         Opcodes::Lui as u32 + rt.rt(),
-                        MipsReloc::without_overflow(MRP::ImmH16, calculation, label.offset),
+                        MipsReloc::without_overflow(MRP::ImmHighU16, calculation, label.offset),
                     );
                     self.instruction_reloc(
                         ctx,
@@ -459,9 +457,170 @@ impl<'a> MipsAssembler<'a> {
                     );
                 }
             },
-            InstructionKind::IdxSaveMem | InstructionKind::IdxLoadMem => {
-                self.instruction(ctx, node, instruction as u32 + rs.rs() + rt.rt());
-            }
+            InstructionKind::IdxSaveMem | InstructionKind::IdxLoadMem => match immediate {
+                Immediate::SignedConstant(value) => {
+                    if MRP::ImmI16.signed_fits(value) {
+                        self.instruction(
+                            ctx,
+                            node,
+                            instruction as u32
+                                + rs.rs()
+                                + rt.rt()
+                                + MRP::ImmI16.generate(value as u32),
+                        );
+                    } else if rs == Register::ZERO {
+                        self.instruction(
+                            ctx,
+                            node,
+                            Opcodes::Lui as u32 + rt.rt() + MRP::ImmHighI16.generate(value as u32),
+                        );
+                        self.instruction(
+                            ctx,
+                            node,
+                            instruction as u32
+                                + rt.rs()
+                                + rt.rt()
+                                + MRP::ImmI16.generate(value as u32),
+                        );
+                    } else if rs != rt || rs != Register::ASM_RESERVE {
+                        let tmp = if rs != Register::ASM_RESERVE {
+                            Register::ASM_RESERVE
+                        } else {
+                            rt
+                        };
+                        self.instruction(
+                            ctx,
+                            node,
+                            Opcodes::Lui as u32
+                                + tmp.rt()
+                                + MipsRelocPattern::ImmHighI16.generate(value as u32),
+                        );
+                        self.instruction(
+                            ctx,
+                            node,
+                            Opcodes::Add as u32 + tmp.rd() + rs.rs() + tmp.rt(),
+                        );
+                        self.instruction(
+                            ctx,
+                            node,
+                            instruction as u32
+                                + rt.rt()
+                                + tmp.rs()
+                                + MipsRelocPattern::ImmI16.generate(value as u32),
+                        );
+                    } else {
+                        ctx.context.report(
+                            LogEntry::new()
+                                .error(node, "cannot generate assembly")
+                                .hint_locless("avoid using at/x1 it is reserved for the assembler"),
+                        );
+                    }
+                }
+                Immediate::UnsignedConstant(value) => {
+                    if MRP::ImmI16.unsigned_fits(value) {
+                        self.instruction(
+                            ctx,
+                            node,
+                            instruction as u32 + rs.rs() + rt.rt() + MRP::ImmI16.generate(value),
+                        );
+                    } else if rs == Register::ZERO {
+                        self.instruction(
+                            ctx,
+                            node,
+                            Opcodes::Lui as u32 + rt.rt() + MRP::ImmHighI16.generate(value),
+                        );
+                        self.instruction(
+                            ctx,
+                            node,
+                            instruction as u32 + rt.rs() + rt.rt() + MRP::ImmI16.generate(value),
+                        );
+                    } else if rs != rt || rs != Register::ASM_RESERVE {
+                        let tmp = if rs != Register::ASM_RESERVE {
+                            Register::ASM_RESERVE
+                        } else {
+                            rt
+                        };
+                        self.instruction(
+                            ctx,
+                            node,
+                            Opcodes::Lui as u32
+                                + tmp.rt()
+                                + MipsRelocPattern::ImmHighI16.generate(value),
+                        );
+                        self.instruction(
+                            ctx,
+                            node,
+                            Opcodes::Add as u32 + tmp.rd() + rs.rs() + tmp.rt(),
+                        );
+                        self.instruction(
+                            ctx,
+                            node,
+                            instruction as u32
+                                + rt.rt()
+                                + tmp.rs()
+                                + MipsRelocPattern::ImmI16.generate(value),
+                        );
+                    } else {
+                        ctx.context.report(
+                            LogEntry::new()
+                                .error(node, "cannot generate assembly")
+                                .hint_locless("avoid using at/x1 it is reserved for the assembler"),
+                        );
+                    }
+                }
+                Immediate::Label(label) => {
+                    let Some(reloc) = kind.reloc(ctx.asm(self), node, label) else {
+                        return;
+                    };
+                    if rs == Register::ZERO {
+                        self.instruction_reloc(
+                            ctx,
+                            node,
+                            Opcodes::Lui as u32 + rt.rt(),
+                            reloc
+                                .with_pattern(MipsRelocPattern::ImmHighI16)
+                                .overflow(true),
+                        );
+                        self.instruction_reloc(
+                            ctx,
+                            node,
+                            instruction as u32 + rt.rs() + rt.rt(),
+                            reloc.with_pattern(MipsRelocPattern::ImmI16).overflow(true),
+                        );
+                    } else if rs != rt || rs != Register::ASM_RESERVE {
+                        let tmp = if rs != Register::ASM_RESERVE {
+                            Register::ASM_RESERVE
+                        } else {
+                            rt
+                        };
+                        self.instruction_reloc(
+                            ctx,
+                            node,
+                            Opcodes::Lui as u32 + tmp.rt(),
+                            reloc
+                                .with_pattern(MipsRelocPattern::ImmHighI16)
+                                .overflow(true),
+                        );
+                        self.instruction(
+                            ctx,
+                            node,
+                            Opcodes::Add as u32 + tmp.rd() + rs.rs() + tmp.rt(),
+                        );
+                        self.instruction_reloc(
+                            ctx,
+                            node,
+                            instruction as u32 + rt.rt() + tmp.rs(),
+                            reloc.with_pattern(MipsRelocPattern::ImmI16).overflow(true),
+                        );
+                    } else {
+                        ctx.context.report(
+                            LogEntry::new()
+                                .error(node, "cannot generate assembly")
+                                .hint_locless("avoid using at/x1 it is reserved for the assembler"),
+                        );
+                    }
+                }
+            },
             InstructionKind::Branch => match immediate {
                 Immediate::SignedConstant(signed) => {
                     let imm = MRP::BranchI16.checked_signed(ctx.context, node, signed);
@@ -472,7 +631,9 @@ impl<'a> MipsAssembler<'a> {
                     self.instruction(ctx, node, instruction as u32 + rs.rs() + rt.rt() + imm);
                 }
                 Immediate::Label(label) => {
-                    let Some(reloc) = kind.reloc(ctx.asm(self), node, label) else {return};
+                    let Some(reloc) = kind.reloc(ctx.asm(self), node, label) else {
+                        return;
+                    };
                     self.instruction_reloc(
                         ctx,
                         node,
@@ -481,47 +642,79 @@ impl<'a> MipsAssembler<'a> {
                     );
                 }
             },
-            InstructionKind::Lui => {
-                self.instruction(ctx, node, instruction as u32 + rs.rs() + rt.rt());
-            }
-            InstructionKind::ArithSigned => {
-                self.instruction(ctx, node, instruction as u32 + rs.rs() + rt.rt());
-            }
-            InstructionKind::ArithUnsigned => {
-                self.instruction(ctx, node, instruction as u32 + rs.rs() + rt.rt());
-            }
-            InstructionKind::Jump => match immediate {
-                Immediate::Label(l) => {
-                    let calculation = match l.ty {
-                        LET::Empty => return Default::default(),
-                        LET::Unspecified(label) | LET::Absolute(label) => MRC::Absolute(
-                            self.state_mut().trans.resolve_or_make_symbol(label.ident),
-                        ),
-                        LET::PcRel(label) => {
-                            ctx.context.report_warning(node, format!("jump instruction target '{l}' defined as pcrel when jump requires absolute"));
-                            MRC::Pcrel(self.state_mut().trans.resolve_or_make_symbol(label.ident))
-                        }
-                        LET::Size(label) => {
-                            ctx.context.report_warning(node, format!("jump instruction target '{l}' defined as size when jump requires absolute"));
-                            MRC::Size(self.state_mut().trans.resolve_or_make_symbol(label.ident))
-                        }
-                        LET::Align(label) => {
-                            ctx.context.report_warning(node, format!("jump instruction target '{l}' defined as align when jump requires absolute"));
-                            MRC::Align(self.state_mut().trans.resolve_or_make_symbol(label.ident))
-                        }
-                        LET::Sub(lhs, rhs) => {
-                            // ctx.context.report_warning(node, format!("jump instruction target '{l}' defined as sub when jump requires absolute"));
-                            MRC::Sub(
-                                self.state_mut().trans.resolve_or_make_symbol(lhs.ident),
-                                self.state_mut().trans.resolve_or_make_symbol(rhs.ident),
-                            )
-                        }
+            InstructionKind::Lui => match immediate {
+                Immediate::SignedConstant(value) => {
+                    let imm = MipsRelocPattern::ImmI16.checked_signed(ctx.context, node, value);
+                    self.instruction(ctx, node, instruction as u32 | rs.rs() | rt.rt() | imm);
+                }
+                Immediate::UnsignedConstant(value) => {
+                    let imm = MipsRelocPattern::ImmU16.checked_unsigned(ctx.context, node, value);
+                    self.instruction(ctx, node, instruction as u32 | rs.rs() | rt.rt() | imm);
+                }
+                Immediate::Label(label) => {
+                    let Some(reloc) = kind.reloc(ctx.asm(self), node, label) else {
+                        return;
                     };
                     self.instruction_reloc(
                         ctx,
                         node,
                         instruction as u32 + rs.rs() + rt.rt(),
-                        MipsReloc::without_overflow(MRP::JumpU26, calculation, l.offset),
+                        reloc,
+                    );
+                }
+            },
+            InstructionKind::ArithSigned => match immediate {
+                Immediate::SignedConstant(value) => {
+                    let imm = MipsRelocPattern::ImmI16.checked_signed(ctx.context, node, value);
+                    self.instruction(ctx, node, instruction as u32 | rs.rs() | rt.rt() | imm);
+                }
+                Immediate::UnsignedConstant(value) => {
+                    let imm = MipsRelocPattern::ImmI16.checked_unsigned(ctx.context, node, value);
+                    self.instruction(ctx, node, instruction as u32 | rs.rs() | rt.rt() | imm);
+                }
+                Immediate::Label(label) => {
+                    let Some(reloc) = kind.reloc(ctx.asm(self), node, label) else {
+                        return;
+                    };
+                    self.instruction_reloc(
+                        ctx,
+                        node,
+                        instruction as u32 + rs.rs() + rt.rt(),
+                        reloc,
+                    );
+                }
+            },
+            InstructionKind::ArithUnsigned => match immediate {
+                Immediate::SignedConstant(value) => {
+                    let imm = MipsRelocPattern::ImmU16.checked_signed(ctx.context, node, value);
+                    self.instruction(ctx, node, instruction as u32 | rs.rs() | rt.rt() | imm);
+                }
+                Immediate::UnsignedConstant(value) => {
+                    let imm = MipsRelocPattern::ImmU16.checked_unsigned(ctx.context, node, value);
+                    self.instruction(ctx, node, instruction as u32 | rs.rs() | rt.rt() | imm);
+                }
+                Immediate::Label(label) => {
+                    let Some(reloc) = kind.reloc(ctx.asm(self), node, label) else {
+                        return;
+                    };
+                    self.instruction_reloc(
+                        ctx,
+                        node,
+                        instruction as u32 + rs.rs() + rt.rt(),
+                        reloc,
+                    );
+                }
+            },
+            InstructionKind::Jump => match immediate {
+                Immediate::Label(label) => {
+                    let Some(reloc) = kind.reloc(ctx.asm(self), node, label) else {
+                        return;
+                    };
+                    self.instruction_reloc(
+                        ctx,
+                        node,
+                        instruction as u32 + rs.rs() + rt.rt(),
+                        reloc,
                     );
                 }
                 Immediate::SignedConstant(v) => {

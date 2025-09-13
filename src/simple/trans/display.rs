@@ -133,7 +133,7 @@ pub fn fmt_section_disassembly<
             writeln!(f, "   {FAINT}v: comt: {comment:?}{RESET}")?;
         }
 
-        write!(f, "{offset: >ptr_size$x}: ")?;
+        write!(f, "{: >ptr_size$x}: ", offset)?;
 
         for _ in 0..size {
             if let Some(byte) = iter.next() {

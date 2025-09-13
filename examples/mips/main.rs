@@ -38,14 +38,48 @@ main: .global; .type func;
 
     .size;
 
+
+random_function: .global; .type func;
+
+    la a0, .text
+    12:
+
+.zero_reg:
+    lw x3, zero
+    lw x3, zero+23
+    lw x3, zero[23]
+    lw x3, 23[zero]
+    lw x3, 0xFFFF[zero]
+    lw x3, label
+    lw x3, label+44
+.other_reg:
+    lw x3, a0
+    lw x3, a0+23
+    lw x3, a0[23]
+    lw x3, 23[a0]
+    lw x3, 0xFFFF[a0]
+    lw x3, label[a0]
+    lw x3, 44+label[a0]
+.asm_reserved:
+    lw x3, at
+    lw x3, at+23
+    lw x3, at[23]
+    lw x3, 23[at]
+    lw x3, 0xFFFF[at]
+    lw x3, label[at]
+    lw x3, 44+label[at]
+
+.size;
+
+
 .rodata
     message: .string "Hello, World!"; .size; .type obj; .global
 
     main_fn_ptr: .values main; .size; .type obj; .global
 
 .section .stack 
-    // _stack_end: .global; .align 1<<12; .space 1<<12
-    // _stack_start: .size 1<<12; .global
+    _stack_end: .global; .align 1<<12; .space 1<<12
+    _stack_start: .size 1<<12; .global
     "#;
     let res = assembler::assemble(
         &Default::default(),

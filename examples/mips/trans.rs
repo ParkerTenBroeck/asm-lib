@@ -172,6 +172,16 @@ impl MipsReloc {
             overflow: false,
         }
     }
+
+    pub fn with_pattern(mut self, pattern: MipsRelocPattern) -> Self {
+        self.pattern = pattern;
+        self
+    }
+
+    pub fn overflow(mut self, overflow: bool) -> Self {
+        self.overflow = overflow;
+        self
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -180,7 +190,8 @@ pub enum MipsRelocPattern {
     BranchI16,
     ImmI16,
     ImmU16,
-    ImmH16,
+    ImmHighU16,
+    ImmHighI16,
 
     U8,
     U16,
@@ -194,7 +205,8 @@ impl std::fmt::Display for MipsRelocPattern {
             MipsRelocPattern::BranchI16 => write!(f, "branch_i16"),
             MipsRelocPattern::ImmI16 => write!(f, "imm_i16"),
             MipsRelocPattern::ImmU16 => write!(f, "imm_u16"),
-            MipsRelocPattern::ImmH16 => write!(f, "imm_h16"),
+            MipsRelocPattern::ImmHighU16 => write!(f, "imm_high_u16"),
+            MipsRelocPattern::ImmHighI16 => write!(f, "imm_high_i16"),
             MipsRelocPattern::U8 => write!(f, "u8"),
             MipsRelocPattern::U16 => write!(f, "u16"),
             MipsRelocPattern::U32 => write!(f, "u32"),
@@ -209,7 +221,8 @@ impl MipsRelocPattern {
             MipsRelocPattern::BranchI16 => imm_16(value >> 2),
             MipsRelocPattern::ImmI16 => imm_16(value),
             MipsRelocPattern::ImmU16 => imm_16(value),
-            MipsRelocPattern::ImmH16 => imm_16(value >> 16),
+            MipsRelocPattern::ImmHighU16 => imm_16(value >> 16),
+            MipsRelocPattern::ImmHighI16 => imm_16((value >> 16).wrapping_sub(value >> 15 & 1)),
             MipsRelocPattern::U8 => value & 0xFF,
             MipsRelocPattern::U16 => value & 0xFFFF,
             MipsRelocPattern::U32 => value,
@@ -248,7 +261,7 @@ impl MipsRelocPattern {
                     format!("value is out of range for '{self}' relocation: '{value}'"),
                 );
             }
-            Self::ImmH16 if value & 0xFFFF != 0 => {
+            Self::ImmHighU16 if value & 0xFFFF != 0 => {
                 ctx.report_error(
                     node,
                     format!("value is out of range for '{self}' relocation: '{value}'"),
@@ -291,7 +304,7 @@ impl MipsRelocPattern {
                     format!("value is out of range for '{self}' relocation: '{value}'"),
                 );
             }
-            Self::ImmH16 if value & 0xFFFF != 0 => {
+            Self::ImmHighU16 if value & 0xFFFF != 0 => {
                 ctx.report_error(
                     node,
                     format!("value is out of range for '{self}' relocation: '{value}'"),
@@ -312,6 +325,36 @@ impl MipsRelocPattern {
             _ => {}
         }
         self.generate(value as u32)
+    }
+
+    pub fn signed_fits(&self, value: i32) -> bool {
+        match self {
+            MipsRelocPattern::JumpU26 => true,
+            MipsRelocPattern::BranchI16 => {
+                (i16::MIN as i32..=i16::MAX as i32).contains(&(value >> 2))
+            }
+            MipsRelocPattern::ImmI16 => (i16::MIN as i32..=i16::MAX as i32).contains(&value),
+            MipsRelocPattern::ImmU16 => (u16::MIN as i32..=u16::MAX as i32).contains(&value),
+            MipsRelocPattern::ImmHighU16 => value & 0xFFFF == 0,
+            MipsRelocPattern::ImmHighI16 => value & 0xFFFF == 0,
+            MipsRelocPattern::U8 => (i8::MIN as i32..=i16::MAX as i32).contains(&value),
+            MipsRelocPattern::U16 => (i16::MIN as i32..=i16::MAX as i32).contains(&value),
+            MipsRelocPattern::U32 => true,
+        }
+    }
+
+    pub fn unsigned_fits(&self, value: u32) -> bool {
+        match self {
+            MipsRelocPattern::JumpU26 => true,
+            MipsRelocPattern::BranchI16 => (0..=i16::MAX as u32).contains(&(value >> 2)),
+            MipsRelocPattern::ImmI16 => (0..=i16::MAX as u32).contains(&value),
+            MipsRelocPattern::ImmU16 => (0..=u16::MAX as u32).contains(&value),
+            MipsRelocPattern::ImmHighU16 => value & 0xFFFF == 0,
+            MipsRelocPattern::ImmHighI16 => value & 0xFFFF == 0,
+            MipsRelocPattern::U8 => (0..=u16::MAX as u32).contains(&value),
+            MipsRelocPattern::U16 => (0..=u16::MAX as u32).contains(&value),
+            MipsRelocPattern::U32 => true,
+        }
     }
 }
 

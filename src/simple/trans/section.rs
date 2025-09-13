@@ -101,7 +101,7 @@ impl<T: TranslationUnitMachine + ?Sized> Section<T> {
     }
 
     pub(crate) fn bind_symbol(&mut self, section_idx: SymbolIdx, offset: T::PtrSizeType) {
-        let (Ok(idx) | Err(idx)) = self.symbols.binary_search_by_key(&offset, |(o, _)| *o);
+        let idx = self.symbols.partition_point(|(o, _)| *o <= offset);
         self.symbols.insert(idx, (offset, section_idx));
     }
 }

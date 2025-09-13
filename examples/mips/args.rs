@@ -3,7 +3,7 @@ use assembler::{
     expression::{Constant, Value, ValueType, args::CoercedArg},
 };
 
-use crate::{MipsAssembler, label::LabelExpr};
+use crate::{MipsAssembler, indexed::MemoryIndex, label::LabelExpr, reg::Register};
 
 #[derive(Clone, Copy)]
 pub enum Immediate<'a> {
@@ -133,5 +133,39 @@ impl<'a> CoercedArg<'a> for ShiftConstant {
 
     fn default(_: &mut Context<'a>, _: NodeRef<'a>) -> Self {
         Self(0)
+    }
+}
+
+pub struct IndexedCoerced<'a>(pub MemoryIndex<'a>);
+
+impl<'a> CoercedArg<'a> for IndexedCoerced<'a> {
+    type LANG = MipsAssembler<'a>;
+    const TYPE_REPR: &'static str = "indexed|register|label|iptr|uptr";
+    const HINT: ValueType<'a, Self::LANG> = ValueType::Iptr;
+
+    fn from_arg(
+        context: &mut Context<'a>,
+        node: NodeRef<'a>,
+        value: Value<'a, Self::LANG>,
+    ) -> Result<Self, Option<String>> {
+        match value {
+            Value::Constant(c) => Ok(Self(MemoryIndex::RegisterOffset(
+                Register::ZERO,
+                c.checked_cast_iptr_with(
+                    node,
+                    context,
+                    context.config().implicit_cast_label_offset,
+                )
+                .unwrap_or_default(),
+            ))),
+            Value::Label(l) => Ok(Self(MemoryIndex::LabelRegisterOffset(Register::ZERO, l))),
+            Value::Indexed(i) => Ok(Self(i)),
+            Value::Register(r) => Ok(Self(MemoryIndex::RegisterOffset(r, 0))),
+            _ => Err(None),
+        }
+    }
+
+    fn default(_: &mut Context<'a>, _: NodeRef<'a>) -> Self {
+        Self(Default::default())
     }
 }
