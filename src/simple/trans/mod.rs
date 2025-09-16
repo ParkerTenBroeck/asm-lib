@@ -147,9 +147,8 @@ impl<T: TranslationUnitMachine> TranslationUnit<T> {
         node: Option<NodeOwned>,
     ) -> Result<(), SymbolError> {
         let (_, symbol) = sym_checked(
+            self.symbols.resolve_or_make(self.str_table.resolve(name)),
             &mut self.symbols,
-            &mut self.str_table,
-            name,
             node,
             |sym| &mut sym.ty,
             SymbolError::KindPreviouslyDeclared,
@@ -165,9 +164,8 @@ impl<T: TranslationUnitMachine> TranslationUnit<T> {
         node: Option<NodeOwned>,
     ) -> Result<(), SymbolError> {
         let (_, symbol) = sym_checked(
+            self.symbols.resolve_or_make(self.str_table.resolve(name)),
             &mut self.symbols,
-            &mut self.str_table,
-            name,
             node,
             |sym| &mut sym.size,
             SymbolError::SizePreviouslyDeclared,
@@ -183,9 +181,8 @@ impl<T: TranslationUnitMachine> TranslationUnit<T> {
         node: Option<NodeOwned>,
     ) -> Result<(), SymbolError> {
         let (_, symbol) = sym_checked(
+            self.symbols.resolve_or_make(self.str_table.resolve(name)),
             &mut self.symbols,
-            &mut self.str_table,
-            name,
             node,
             |sym| &mut sym.visibility,
             SymbolError::VisibilityPreviouslyDeclared,
@@ -237,12 +234,15 @@ impl<'a, T: TranslationUnitMachine> SectionMut<'a, T> {
         self.section.debug_info.emit_comment_dbg(offset, comment)
     }
 
-    pub fn bind_symbol(&mut self, name: &str, node: Option<NodeOwned>) -> Result<(), SymbolError> {
+    pub fn bind_symbol(
+        &mut self,
+        symbol_idx: SymbolIdx,
+        node: Option<NodeOwned>,
+    ) -> Result<(), SymbolError> {
         let current_offset = self.section.data.current_offset();
         let (symbol_idx, symbol) = sym_checked(
+            symbol_idx,
             self.symbols,
-            self.str_table,
-            name,
             node,
             |sym| &mut sym.definition,
             SymbolError::PreviouslyBound,
@@ -258,18 +258,24 @@ impl<'a, T: TranslationUnitMachine> SectionMut<'a, T> {
         self.section.bind_symbol(symbol_idx, current_offset);
         Ok(())
     }
+
+    pub fn bind_symbol_resolve(
+        &mut self,
+        name: &str,
+        symbol: Option<NodeOwned>,
+    ) -> Result<(), SymbolError> {
+        let name = self.symbols.resolve_or_make(self.str_table.resolve(name));
+        self.bind_symbol(name, symbol)
+    }
 }
 
-fn sym_checked<'a, T: PrimInt>(
-    symbols: &'a mut Symbols<T>,
-    str_table: &'a mut StringTable,
-    name: &str,
+fn sym_checked<T: PrimInt>(
+    symbol_idx: SymbolIdx,
+    symbols: &mut Symbols<T>,
     node: Option<NodeOwned>,
     node_kind: impl Fn(&mut SymbolDbg) -> &mut Option<NodeOwned>,
     err: impl FnOnce(Option<NodeOwned>) -> SymbolError,
-) -> Result<(SymbolIdx, &'a mut Symbol<T>), SymbolError> {
-    let symbol_idx = symbols.resolve_or_make(str_table.resolve(name));
-
+) -> Result<(SymbolIdx, &mut Symbol<T>), SymbolError> {
     let mut dbg = symbols.symbol_dbg_entry(symbol_idx);
     if let Entry::Occupied(entry) = &mut dbg
         && let Some(declaration) = node_kind(entry.get_mut())

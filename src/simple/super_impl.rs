@@ -78,7 +78,14 @@ impl<'a, T: SimpleAssemblyLanguage<'a>> crate::assembler::lang::AssemblyLanguage
         negated: bool,
         hint: ValueType<'a, Self>,
     ) -> Value<'a, Self> {
-        self.parse_numeric_literal(ctx, num, negated, hint)
+        if matches!(num.0.get_suffix(), Some("f")) {
+            self.state_mut().expect_front_numeric_label(ctx.context, num.1, num.0.get_num())
+        }else if matches!(num.0.get_suffix(), Some("b")) {
+            self.encounter_label(&mut ctx.lang(), num.0.get_full(), num.1);
+            todo!()
+        } else {
+            self.parse_numeric_literal(ctx, num, negated, hint)
+        }
     }
 
     fn eval_func(
@@ -198,7 +205,7 @@ impl<'a, T: SimpleAssemblyLanguage<'a>> crate::assembler::lang::AssemblyLanguage
                     label,
                     match mnemonic {
                         ".global" => trans::sym::SymbolVisibility::Global,
-                        ".Weak" => trans::sym::SymbolVisibility::Weak,
+                        ".weak" => trans::sym::SymbolVisibility::Weak,
                         ".local" => trans::sym::SymbolVisibility::Local,
                         _ => unreachable!(),
                     },
@@ -400,24 +407,38 @@ impl<'a, T: SimpleAssemblyLanguage<'a>> crate::assembler::lang::AssemblyLanguage
     fn encounter_label(
         &mut self,
         ctx: &mut LangCtx<'a, '_, Self>,
-        mut label: &'a str,
+        label: &'a str,
         node: NodeRef<'a>,
     ) {
-        let local = label.starts_with('.');
-        if local {
+        let (label, local) = if label.starts_with(".") {
             if let Some(prev) = self.state_mut().expect_last_label(ctx.context, node) {
-                label = ctx.context.alloc_str(format!("{prev}{label}"))
+                (ctx.context.alloc_str(format!("{prev}{label}")), true)
+            } else {
+                (label, true)
             }
+        } else if label.starts_with(char::is_numeric) {
+            (self.state_mut().bind_local_numeric_label(ctx.context, node, label), true)
         } else {
             self.state_mut().last_non_local_label = Some(label);
+            (label, false)
+        };
+
+        let node_owned = ctx.context.node_to_owned(node);
+        let result = self
+            .current_section_mut(ctx, node)
+            .bind_symbol_resolve(label, Some(node_owned.clone()));
+
+        if let Err(err) = result {
+            ctx.context
+                .report_owned(err.to_log_entry(label, node_owned.clone()));
         }
 
-        {
-            let node_owned = ctx.context.node_to_owned(node);
-            let result = self
-                .current_section_mut(ctx, node)
-                .bind_symbol(label, Some(node_owned.clone()));
-
+        if local {
+            let result = self.state_mut().trans.set_symbol_visibility(
+                label,
+                trans::sym::SymbolVisibility::Local,
+                Some(node_owned.clone()),
+            );
             if let Err(err) = result {
                 ctx.context
                     .report_owned(err.to_log_entry(label, node_owned));

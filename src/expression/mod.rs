@@ -78,6 +78,13 @@ impl<'a, 'b, L: AssemblyLanguage<'a>> ExprCtx<'a, 'b, L> {
             kind: self.kind,
         }
     }
+
+    pub fn lang<'c>(&'c mut self) -> crate::LangCtx<'a, 'c, L> {
+        crate::LangCtx {
+            context: self.context,
+            preprocessor: self.preprocessor,
+        }
+    }
 }
 
 macro_rules! ctx {
