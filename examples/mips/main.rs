@@ -18,6 +18,12 @@ pub fn main() {
     let src = r#"
 .text
 
+j 1b
+j 1f  
+1:
+j 1b
+j 1f
+
 _start: .global; .type func;
  
         la sp, _stack_start
@@ -42,7 +48,6 @@ main: .global; .type func;
 random_function: .global; .type func;
 
     la a0, .text
-    12:
 
 .zero_reg:
     lw x3, zero

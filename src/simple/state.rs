@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 
-use crate::Number;
 use crate::context::Context;
 use crate::simple::SimpleAssemblyLanguage;
 use crate::simple::trans::TranslationUnit;
@@ -32,33 +31,12 @@ impl<'a> NumericLabel<'a> {
         ctx.alloc_str(format!(".L{num}^B{count}"))
     }
 
-    pub fn bind<L: SimpleAssemblyLanguage<'a>>(
-        &mut self,
-        ctx: &mut Context<'a>,
-        num: u32,
-        state: &mut SALState<'a, L>,
-        node: NodeRef<'a>,
-    ) {
+    pub fn next(&mut self, ctx: &mut Context<'a>, num: u32) -> &'a str {
         self.back = Some(self.front);
-        let section = state.expect_section(ctx, node);
-        let node_owned = ctx.node_to_owned(node);
-        let res = state
-            .trans
-            .resolve_mut(section)
-            .bind_symbol_resolve(self.front, Some(node_owned.clone()));
-        if let Err(err) = res {
-            ctx.report_owned(err.to_log_entry(self.front, node_owned.clone()));
-        }
-        let res = state.trans.set_symbol_visibility(
-            self.front,
-            super::trans::sym::SymbolVisibility::Local,
-            Some(node_owned.clone()),
-        );
-        if let Err(err) = res {
-            ctx.report_owned(err.to_log_entry(self.front, node_owned));
-        }
+        let label = self.front;
         self.count += 1;
-        self.front = Self::str(ctx, self.count, num)
+        self.front = Self::str(ctx, self.count, num);
+        label
     }
 }
 
@@ -113,7 +91,15 @@ impl<'a, L: SimpleAssemblyLanguage<'a>> SALState<'a, L> {
         node: NodeRef<'a>,
         num: &'a str,
     ) -> Option<&'a str> {
-        todo!()
+        let num = Self::parse_label_number(context, node, num)?;
+        let entry = self
+            .local_numeric_labels
+            .entry(num)
+            .or_insert_with(|| NumericLabel::new(context, num));
+        if entry.back.is_none() {
+            context.report_error(node, "label is not defined");
+        }
+        entry.back
     }
 
     pub fn expect_front_numeric_label(
@@ -121,16 +107,57 @@ impl<'a, L: SimpleAssemblyLanguage<'a>> SALState<'a, L> {
         context: &mut Context<'a>,
         node: NodeRef<'a>,
         num: &'a str,
-    ) -> &'a str {
-        todo!()
+    ) -> Option<&'a str> {
+        let num = Self::parse_label_number(context, node, num)?;
+        let entry = self
+            .local_numeric_labels
+            .entry(num)
+            .or_insert_with(|| NumericLabel::new(context, num));
+        Some(entry.front)
     }
 
-    pub fn bind_local_numeric_label(
+    pub fn expect_next_local_numeric_label(
         &mut self,
         context: &mut Context<'a>,
         node: NodeRef<'a>,
         num: &'a str,
-    ) -> &'a str{
-        todo!()
+    ) -> Option<&'a str> {
+        let num = Self::parse_label_number(context, node, num)?;
+        let entry = self
+            .local_numeric_labels
+            .entry(num)
+            .or_insert_with(|| NumericLabel::new(context, num));
+        Some(entry.next(context, num))
+    }
+
+    fn parse_label_number(
+        context: &mut Context<'a>,
+        node: NodeRef<'a>,
+        num: &'a str,
+    ) -> Option<u32> {
+        match num.parse() {
+            Ok(num) => Some(num),
+            Err(err) => {
+                match err.kind() {
+                    std::num::IntErrorKind::Empty => {
+                        context.report_error(node, "numeric label is empty")
+                    }
+                    std::num::IntErrorKind::InvalidDigit => {
+                        context.report_error(node, "invalid digit in numeric label")
+                    }
+                    std::num::IntErrorKind::PosOverflow => {
+                        context.report_error(node, "numeric label number too large")
+                    }
+                    std::num::IntErrorKind::NegOverflow => {
+                        context.report_error(node, "numeric label number too small")
+                    }
+                    std::num::IntErrorKind::Zero => {
+                        context.report_error(node, "numeric label number cannot be zero")
+                    }
+                    _ => context.report_error(node, format!("error: {err}")),
+                }
+                None
+            }
+        }
     }
 }

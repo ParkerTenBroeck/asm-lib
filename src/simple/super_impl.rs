@@ -79,10 +79,23 @@ impl<'a, T: SimpleAssemblyLanguage<'a>> crate::assembler::lang::AssemblyLanguage
         hint: ValueType<'a, Self>,
     ) -> Value<'a, Self> {
         if matches!(num.0.get_suffix(), Some("f")) {
-            self.state_mut().expect_front_numeric_label(ctx.context, num.1, num.0.get_num())
-        }else if matches!(num.0.get_suffix(), Some("b")) {
-            self.encounter_label(&mut ctx.lang(), num.0.get_full(), num.1);
-            todo!()
+            let label =
+                self.state_mut()
+                    .expect_front_numeric_label(ctx.context, num.1, num.0.get_num());
+            if let Some(label) = label {
+                self.parse_ident(ctx, Node(label, num.1), hint)
+            } else {
+                Value::Label(T::Label::default())
+            }
+        } else if matches!(num.0.get_suffix(), Some("b")) {
+            let label =
+                self.state_mut()
+                    .expect_back_numeric_label(ctx.context, num.1, num.0.get_num());
+            if let Some(label) = label {
+                self.parse_ident(ctx, Node(label, num.1), hint)
+            } else {
+                Value::Label(T::Label::default())
+            }
         } else {
             self.parse_numeric_literal(ctx, num, negated, hint)
         }
@@ -417,7 +430,13 @@ impl<'a, T: SimpleAssemblyLanguage<'a>> crate::assembler::lang::AssemblyLanguage
                 (label, true)
             }
         } else if label.starts_with(char::is_numeric) {
-            (self.state_mut().bind_local_numeric_label(ctx.context, node, label), true)
+            let Some(label) = self
+                .state_mut()
+                .expect_next_local_numeric_label(ctx.context, node, label)
+            else {
+                return;
+            };
+            (label, true)
         } else {
             self.state_mut().last_non_local_label = Some(label);
             (label, false)
