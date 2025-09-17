@@ -67,6 +67,17 @@ impl<'a, T: SimpleAssemblyLanguage<'a>> crate::assembler::lang::AssemblyLanguage
                     AsmStr::ByteStr(node.top().source.path.as_os_str().as_bytes())
                 },
             )),
+            "__local_line__" => Value::Constant(Constant::U32(node.span.line.wrapping_add(1))),
+            "__local_col__" => Value::Constant(Constant::U32(node.span.col)),
+            "__local_len__" => Value::Constant(Constant::U32(node.span.len)),
+            "__local_offset__" => Value::Constant(Constant::U32(node.span.offset)),
+            "__local_file__" => Value::Constant(Constant::Str(
+                if let Some(str) = node.source.path.as_os_str().to_str() {
+                    AsmStr::Str(str)
+                } else {
+                    AsmStr::ByteStr(node.source.path.as_os_str().as_bytes())
+                },
+            )),
             _ => self.parse_ident(ctx, Node(ident, node), hint),
         }
     }
@@ -230,21 +241,7 @@ impl<'a, T: SimpleAssemblyLanguage<'a>> crate::assembler::lang::AssemblyLanguage
                 }
             }
             ".align" => {
-                let Node(args, node) = ctx.eval(self).coerced(n);
-                let (align, label) = match args {
-                    (UptrPow2Arg::Val(Some(align)), None) => (
-                        align,
-                        if let Some(label) = self.state_mut().expect_last_label(ctx.context, node) {
-                            label
-                        } else {
-                            return;
-                        },
-                    ),
-                    (UptrPow2Arg::Val(Some(align)), Some(IdentStrArg::Val(Some(label)))) => {
-                        (align, label)
-                    }
-                    _ => return,
-                };
+                let Node(UptrPow2Arg::Val(align), node) = ctx.eval(self).coerced(n);
             }
             ".type" => {
                 let Node(args, node) = ctx.eval(self).coerced(n);
@@ -322,11 +319,11 @@ impl<'a, T: SimpleAssemblyLanguage<'a>> crate::assembler::lang::AssemblyLanguage
                         );
                         return;
                     };
-                    let Symbol {
+                    let Some(Symbol {
                         section: Some(section_idx),
                         offset,
                         ..
-                    } = *self.state_mut().trans.get_symbol_mut(symbol)
+                    }) = self.state_mut().trans.get_symbol_mut(symbol).copied()
                     else {
                         ctx.context.report_error(
                             node,
@@ -430,9 +427,9 @@ impl<'a, T: SimpleAssemblyLanguage<'a>> crate::assembler::lang::AssemblyLanguage
                 (label, true)
             }
         } else if label.starts_with(char::is_numeric) {
-            let Some(label) = self
-                .state_mut()
-                .expect_next_local_numeric_label(ctx.context, node, label)
+            let Some(label) =
+                self.state_mut()
+                    .expect_next_local_numeric_label(ctx.context, node, label)
             else {
                 return;
             };
@@ -470,8 +467,9 @@ impl<'a, T: SimpleAssemblyLanguage<'a>> crate::assembler::lang::AssemblyLanguage
     fn finish(&mut self, ctx: LangCtx<'a, '_, Self>) -> Self::AssembledResult {
         self.finish(ctx);
 
-        //TODO bruh
-        self.state_mut().trans.clone()
+        let mut other = TranslationUnit::new();
+        std::mem::swap(&mut self.state_mut().trans, &mut other);
+        other
     }
 
     fn encounter_comment(

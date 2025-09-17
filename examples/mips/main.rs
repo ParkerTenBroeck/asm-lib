@@ -16,13 +16,7 @@ pub type NodeVal<'a> = assembler::expression::NodeVal<'a, MipsAssembler<'a>>;
 
 pub fn main() {
     let src = r#"
-.text
-
-j 1b
-j 1f  
-1:
-j 1b
-j 1f
+.section .text.start
 
 _start: .global; .type func;
  
@@ -30,6 +24,9 @@ _start: .global; .type func;
         jal main
     .loop:
         j .loop
+
+
+.text
 
 main: .global; .type func;
     la a0, message
@@ -48,6 +45,10 @@ main: .global; .type func;
 random_function: .global; .type func;
 
     la a0, .text
+    beq a0, zero, 1f
+    ret
+    1:
+    b 1b
 
 .zero_reg:
     lw x3, zero
@@ -82,7 +83,7 @@ random_function: .global; .type func;
 
     main_fn_ptr: .values main; .size; .type obj; .global
 
-.section .stack 
+.section .data.stack 
     _stack_end: .global; .align 1<<12; .space 1<<12
     _stack_start: .size 1<<12; .global
     "#;

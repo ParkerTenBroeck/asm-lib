@@ -5,7 +5,10 @@ use num_traits::PrimInt;
 use crate::{
     logs::LogEntry,
     node::NodeOwned,
-    simple::trans::{SectionIdx, str::StrIdx},
+    simple::trans::{
+        SectionIdx, TranslationUnitMachine,
+        str::{StrIdx, StringTable},
+    },
 };
 
 #[derive(Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord, Debug)]
@@ -50,8 +53,8 @@ impl Display for SymbolType {
 pub enum SymbolVisibility {
     #[default]
     Local,
-    Global,
     Weak,
+    Global,
 }
 
 impl Display for SymbolVisibility {
@@ -90,13 +93,31 @@ impl<T: PrimInt> Symbol<T> {
     pub fn name(&self) -> StrIdx {
         self.name
     }
+
+    pub fn merge<M: TranslationUnitMachine<PtrSizeType = T>>(
+        &self,
+        str_table: &StringTable,
+        linker: &mut super::link::Linker<M>,
+    ) -> Symbol<T> {
+        let mut copy = *self;
+
+        //TODO
+        if let Some(section) = copy.section {
+            copy.offset = copy.offset.saturating_add(linker.section_offset(section));
+        }
+
+        copy.name = linker
+            .str_table()
+            .resolve(str_table.get(copy.name).unwrap_or_default());
+
+        copy
+    }
 }
 
 #[derive(Clone, Debug, Default)]
 pub struct Symbols<T: PrimInt> {
     symbols: Vec<Symbol<T>>,
     symbol_map: HashMap<StrIdx, SymbolIdx>,
-
     symbol_dbg_map: HashMap<SymbolIdx, SymbolDbg>,
 }
 
@@ -167,17 +188,21 @@ impl<T: PrimInt> Symbols<T> {
         }
     }
 
-    pub fn symbol_mut(&mut self, symbol_idx: SymbolIdx) -> &mut Symbol<T> {
-        self.symbols.get_mut(symbol_idx.0).unwrap()
+    pub fn symbol_mut(&mut self, symbol_idx: SymbolIdx) -> Option<&mut Symbol<T>> {
+        self.symbols.get_mut(symbol_idx.0)
     }
 
-    pub fn symbol(&self, symbol_idx: SymbolIdx) -> &Symbol<T> {
-        self.symbols.get(symbol_idx.0).unwrap()
+    pub fn symbol(&self, symbol_idx: SymbolIdx) -> Option<&Symbol<T>> {
+        self.symbols.get(symbol_idx.0)
     }
 
     pub fn reset_locals(&mut self) {
         self.symbol_map.retain(|_, e| {
-            self.symbols.get_mut(e.0).unwrap().visibility != SymbolVisibility::Local
+            self.symbols
+                .get_mut(e.0)
+                .map(|s| s.visibility)
+                .unwrap_or(SymbolVisibility::Local)
+                != SymbolVisibility::Local
         });
     }
 
@@ -205,5 +230,14 @@ impl<T: PrimInt> Symbols<T> {
 
     pub fn get_symbol_dbg(&self, symbol_idx: SymbolIdx) -> Option<&SymbolDbg> {
         self.symbol_dbg_map.get(&symbol_idx)
+    }
+
+    pub fn create_bound(&mut self, sym: Symbol<T>, dbg: Option<SymbolDbg>) -> SymbolIdx {
+        let symbol_idx = SymbolIdx(self.symbols.len());
+        self.symbols.push(sym);
+        if let Some(dbg) = dbg {
+            self.symbol_dbg_map.insert(symbol_idx, dbg);
+        }
+        symbol_idx
     }
 }

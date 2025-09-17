@@ -1,7 +1,7 @@
 use assembler::{
     Context, NodeRef,
     simple::trans::{
-        TranslationUnit, TranslationUnitMachine,
+        SectionIdx, TranslationUnit, TranslationUnitMachine,
         display::{RightPad, fmt_section_disassembly},
         reloc::Reloc,
         section::Section,
@@ -21,11 +21,13 @@ impl TranslationUnitMachine for MipsTranslationUnit {
     type PtrSizeType = u32;
 
     fn fmt_section_disassembly(
+        section_idx: SectionIdx,
         section: &Section<Self>,
         trans: &assembler::simple::trans::TranslationUnit<Self>,
         f: &mut impl std::fmt::Write,
     ) -> std::fmt::Result {
         fmt_section_disassembly(
+            section_idx,
             section,
             trans,
             f,
@@ -386,7 +388,9 @@ impl Reloc for MipsReloc {
             symbol_idx: SymbolIdx,
             trans: &TranslationUnit<MipsTranslationUnit>,
         ) -> std::fmt::Result {
-            let sym = trans.get_symbol(symbol_idx);
+            let Some(sym) = trans.get_symbol(symbol_idx) else {
+                return Ok(());
+            };
             write!(f, "{}", trans.get_str(sym.name()).unwrap_or_default())?;
             if let Some(section) = sym.section {
                 write!(
@@ -432,5 +436,21 @@ impl Reloc for MipsReloc {
         write!(f, ")")?;
 
         Ok(())
+    }
+
+    fn max_size(&self) -> u32 {
+        4
+    }
+
+    fn current_size(&self) -> u32 {
+        4
+    }
+
+    fn merge(&mut self) {
+        todo!()
+    }
+
+    fn resolve(&self, trans: &mut TranslationUnit<Self::Machine>) {
+        todo!()
     }
 }

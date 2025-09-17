@@ -1,7 +1,7 @@
 use crate::{
     ansi::{self, *},
     expression::conversion::FromAsPrimitive,
-    simple::trans::reloc::Reloc,
+    simple::trans::{SectionIdx, reloc::Reloc, sym::SymbolVisibility},
 };
 use num_traits::{PrimInt, WrappingAdd};
 use std::fmt::{LowerHex, Write};
@@ -16,8 +16,8 @@ impl<T: TranslationUnitMachine<PtrSizeType: LowerHex>> std::fmt::Display for Tra
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.symbols.display(f, self)?;
         writeln!(f)?;
-        for section in &self.sections {
-            section.display(&mut *f, self)?
+        for (idx, section) in self.sections() {
+            section.display(idx, &mut *f, self)?
         }
         Ok(())
     }
@@ -26,6 +26,7 @@ impl<T: TranslationUnitMachine<PtrSizeType: LowerHex>> std::fmt::Display for Tra
 impl<T: TranslationUnitMachine<PtrSizeType: LowerHex>> Section<T> {
     pub fn display(
         &self,
+        idx: SectionIdx,
         f: &mut impl std::fmt::Write,
         trans: &super::TranslationUnit<T>,
     ) -> std::fmt::Result {
@@ -44,19 +45,17 @@ impl<T: TranslationUnitMachine<PtrSizeType: LowerHex>> Section<T> {
         let x = if self.executable { "x" } else { "_" };
         writeln!(
             f,
-            "section size:{size:0>ptr_size$x}, align:{align:0>ptr_size$x}, rwx:{r}{w}{x} '{name}'"
+            "section size:{size:0>ptr_size$x}, align:{align:0>ptr_size$x}, rwx:{r}{w}{x} '{name}'\n"
         )?;
-        writeln!(f)?;
 
         let mut f = Indent::new_start(f, 2);
         let f = &mut f;
 
         {
-            writeln!(f, "data\n")?;
             let mut f = Indent::new_start(&mut *f, 2);
             let f = &mut f;
             if self.executable {
-                T::fmt_section_disassembly(self, trans, f)?;
+                T::fmt_section_disassembly(idx, self, trans, f)?;
             } else {
                 fmt_section_hex(self, trans, f)?;
             }
@@ -91,6 +90,7 @@ pub fn fmt_section_disassembly<
     F: std::fmt::Write,
     T: TranslationUnitMachine<PtrSizeType: LowerHex + FromAsPrimitive<usize> + WrappingAdd> + ?Sized,
 >(
+    section_idx: SectionIdx,
     section: &Section<T>,
     trans: &TranslationUnit<T>,
     f: &mut F,
@@ -102,6 +102,8 @@ pub fn fmt_section_disassembly<
     let mut iter = section.data.slice().iter();
     let ptr_size = std::mem::size_of::<T::PtrSizeType>() * 2;
 
+    let mut first = true;
+
     let mut offset = 0;
     let mut data_offset: T::PtrSizeType = num_traits::zero();
     while iter.len() > 0 {
@@ -111,21 +113,16 @@ pub fn fmt_section_disassembly<
         let data_start = data_offset;
         let data_end = data_offset.wrapping_add(&FromAsPrimitive::from_as(size));
 
-        for (_, symbol) in section.get_symbols(data_start..data_end) {
-            if !matches!(
-                trans.symbols.symbol(*symbol).visibility,
-                crate::simple::trans::sym::SymbolVisibility::Local
-            ) {
+        for (_, symbol) in trans.get_symbols(section_idx, data_start..data_end) {
+            if !matches!(symbol.visibility, SymbolVisibility::Local) && !first {
                 writeln!(f)?;
                 break;
             }
         }
-        for (offset, symbol) in section.get_symbols(data_start..data_end) {
-            write!(f, "{offset:0>ptr_size$x}: ")?;
-            let name = trans
-                .str_table
-                .get(trans.symbols.symbol(*symbol).name())
-                .unwrap_or_default();
+        first = false;
+        for (_, symbol) in trans.get_symbols(section_idx, data_start..data_end) {
+            write!(f, "{:0>ptr_size$x}: ", symbol.offset)?;
+            let name = trans.str_table.get(symbol.name()).unwrap_or_default();
             writeln!(f, "<{}>", name.escape_debug())?;
         }
 
@@ -185,7 +182,30 @@ pub fn fmt_section_hex<T: TranslationUnitMachine<PtrSizeType: LowerHex> + ?Sized
     let chunk_size = 16;
     let ptr_size = std::mem::size_of::<T::PtrSizeType>() * 2;
 
-    for chunk in section.data.slice().chunks(chunk_size) {
+    let mut chunk_iter = section.data.slice().chunks(chunk_size);
+    let mut prev;
+    let mut curr = None;
+    let mut next = chunk_iter.next();
+    let mut first_skip = true;
+
+    while let Some(chunk) = {
+        prev = curr;
+        curr = next;
+        next = chunk_iter.next();
+        if let Some(chunk) = prev {
+            offset += chunk.len();
+        }
+        curr
+    } {
+        if prev == curr && curr == next {
+            if first_skip {
+                writeln!(f, "{:.>ptr_size$}", "")?;
+                first_skip = false;
+            }
+            continue;
+        }
+        first_skip = true;
+
         write!(f, "{offset:0>ptr_size$x}: ")?;
 
         for byte in chunk {
@@ -219,7 +239,6 @@ pub fn fmt_section_hex<T: TranslationUnitMachine<PtrSizeType: LowerHex> + ?Sized
         }
 
         writeln!(f)?;
-        offset += chunk.len();
     }
 
     writeln!(f)?;

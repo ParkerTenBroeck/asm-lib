@@ -15,7 +15,7 @@ pub struct Section<T: TranslationUnitMachine + ?Sized> {
     symbols: Vec<(T::PtrSizeType, SymbolIdx)>,
 }
 
-impl<T: TranslationUnitMachine> std::fmt::Debug for Section<T> {
+impl<T: TranslationUnitMachine + ?Sized> std::fmt::Debug for Section<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Section")
             .field("name", &self.name)
@@ -76,32 +76,5 @@ impl<T: TranslationUnitMachine + ?Sized> Section<T> {
 
     pub fn debug_info(&self) -> &DebugInfo<T::PtrSizeType> {
         &self.debug_info
-    }
-
-    pub fn get_symbols(
-        &self,
-        range: impl std::ops::RangeBounds<T::PtrSizeType>,
-    ) -> &[(T::PtrSizeType, SymbolIdx)] {
-        let start_idx = self
-            .symbols
-            .partition_point(|(off, _)| match range.start_bound() {
-                std::ops::Bound::Included(v) => *off < *v,
-                std::ops::Bound::Excluded(v) => *off <= *v,
-                std::ops::Bound::Unbounded => false,
-            });
-
-        let end_idx = self
-            .symbols
-            .partition_point(|(off, _)| match range.end_bound() {
-                std::ops::Bound::Included(v) => *off <= *v,
-                std::ops::Bound::Excluded(v) => *off < *v,
-                std::ops::Bound::Unbounded => true,
-            });
-        &self.symbols[start_idx..end_idx]
-    }
-
-    pub(crate) fn bind_symbol(&mut self, section_idx: SymbolIdx, offset: T::PtrSizeType) {
-        let idx = self.symbols.partition_point(|(o, _)| *o <= offset);
-        self.symbols.insert(idx, (offset, section_idx));
     }
 }

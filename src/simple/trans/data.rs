@@ -4,6 +4,7 @@ use num_traits::{NumCast, PrimInt};
 pub struct Data<T: PrimInt> {
     data: Vec<u8>,
     align: T,
+    size: T,
 }
 
 impl<T: PrimInt> Default for Data<T> {
@@ -17,6 +18,7 @@ impl<T: PrimInt> Data<T> {
         Self {
             data: Vec::new(),
             align: num_traits::one(),
+            size: num_traits::zero(),
         }
     }
 
@@ -31,7 +33,7 @@ impl<T: PrimInt> Data<T> {
     pub fn push_data(&mut self, data: &[u8], align: T) -> std::ops::Range<T> {
         let start = self.data.len();
 
-        self.align = self.align.max(align);
+        self.push_align(align);
         self.data.extend_from_slice(data);
 
         let end = self.data.len();
@@ -42,7 +44,7 @@ impl<T: PrimInt> Data<T> {
     pub fn push_space(&mut self, space: T, align: T) -> std::ops::Range<T> {
         let start = self.data.len();
 
-        self.align = self.align.max(align);
+        self.push_align(align);
         let size: usize = NumCast::from(space).unwrap();
         self.data.resize(start + size, 0);
 
@@ -51,7 +53,15 @@ impl<T: PrimInt> Data<T> {
         T::from(start).unwrap()..T::from(end).unwrap()
     }
 
+    pub fn push_align(&mut self, align: T) {
+        self.align = self.align.max(align);
+    }
+
     pub fn align(&self) -> T {
         self.align
+    }
+
+    pub fn size(&self) -> T {
+        self.size
     }
 }

@@ -7,6 +7,7 @@ use std::{
 pub mod data;
 pub mod dbg;
 pub mod display;
+pub mod link;
 pub mod reloc;
 pub mod section;
 pub mod seder;
@@ -28,6 +29,7 @@ pub trait TranslationUnitMachine {
     type PtrSizeType: PrimInt + std::fmt::Debug + std::fmt::LowerHex;
 
     fn fmt_section_disassembly(
+        _: SectionIdx,
         section: &Section<Self>,
         trans: &TranslationUnit<Self>,
         f: &mut impl std::fmt::Write,
@@ -43,7 +45,7 @@ pub struct TranslationUnit<T: TranslationUnitMachine + ?Sized> {
     str_table: StringTable,
 }
 
-impl<T: TranslationUnitMachine> Clone for TranslationUnit<T> {
+impl<T: TranslationUnitMachine + ?Sized> Clone for TranslationUnit<T> {
     fn clone(&self) -> Self {
         TranslationUnit {
             sections: self.sections.clone(),
@@ -54,7 +56,7 @@ impl<T: TranslationUnitMachine> Clone for TranslationUnit<T> {
     }
 }
 
-impl<T: TranslationUnitMachine> core::fmt::Debug for TranslationUnit<T> {
+impl<T: TranslationUnitMachine + ?Sized> core::fmt::Debug for TranslationUnit<T> {
     fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
         f.debug_struct("TranslationUnit")
             .field("sections", &self.sections)
@@ -65,13 +67,13 @@ impl<T: TranslationUnitMachine> core::fmt::Debug for TranslationUnit<T> {
     }
 }
 
-impl<T: TranslationUnitMachine> Default for TranslationUnit<T> {
+impl<T: TranslationUnitMachine + ?Sized> Default for TranslationUnit<T> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<T: TranslationUnitMachine> TranslationUnit<T> {
+impl<T: TranslationUnitMachine + ?Sized> TranslationUnit<T> {
     pub fn new() -> Self {
         Self {
             sections: Vec::new(),
@@ -91,13 +93,11 @@ impl<T: TranslationUnitMachine> TranslationUnit<T> {
             return *idx;
         }
         let mut section = Section::new(name_idx);
-        match name {
-            ".text" => section.executable = true,
-            ".bss" => section.writeable = true,
-            ".data" => section.writeable = true,
-            ".common" => section.writeable = true,
-            ".rodata" => {}
-            _ => section.writeable = true,
+        if name.starts_with(".text") {
+            section.executable = true
+        } else if name.starts_with(".bss") | name.starts_with(".data") | name.starts_with(".common")
+        {
+            section.writeable = true
         }
         self.sections.push(section);
         let idx = SectionIdx(NonZeroUsize::new(self.sections.len()).unwrap());
@@ -113,6 +113,20 @@ impl<T: TranslationUnitMachine> TranslationUnit<T> {
             symbols: &mut self.symbols,
             str_table: &mut self.str_table,
         }
+    }
+
+    pub fn sections(&self) -> impl ExactSizeIterator<Item = (SectionIdx, &Section<T>)> {
+        self.sections
+            .iter()
+            .enumerate()
+            .map(|(i, s)| (SectionIdx(NonZeroUsize::new(i + 1).unwrap()), s))
+    }
+
+    pub fn sections_mut(&mut self) -> impl ExactSizeIterator<Item = (SectionIdx, &mut Section<T>)> {
+        self.sections
+            .iter_mut()
+            .enumerate()
+            .map(|(i, s)| (SectionIdx(NonZeroUsize::new(i + 1).unwrap()), s))
     }
 
     pub fn get(&self, section_idx: SectionIdx) -> &Section<T> {
@@ -132,11 +146,11 @@ impl<T: TranslationUnitMachine> TranslationUnit<T> {
         self.symbols.resolve(self.str_table.resolve(name))
     }
 
-    pub fn get_symbol_mut(&mut self, symbol_idx: SymbolIdx) -> &mut Symbol<T::PtrSizeType> {
+    pub fn get_symbol_mut(&mut self, symbol_idx: SymbolIdx) -> Option<&mut Symbol<T::PtrSizeType>> {
         self.symbols.symbol_mut(symbol_idx)
     }
 
-    pub fn get_symbol(&self, symbol_idx: SymbolIdx) -> &Symbol<T::PtrSizeType> {
+    pub fn get_symbol(&self, symbol_idx: SymbolIdx) -> Option<&Symbol<T::PtrSizeType>> {
         self.symbols.symbol(symbol_idx)
     }
 
@@ -194,16 +208,26 @@ impl<T: TranslationUnitMachine> TranslationUnit<T> {
     pub fn get_str(&self, str_idx: StrIdx) -> Option<&str> {
         self.str_table.get(str_idx)
     }
+
+    pub fn get_symbols(
+        &self,
+        section: SectionIdx,
+        range: impl std::ops::RangeBounds<T::PtrSizeType>,
+    ) -> impl Iterator<Item = (SymbolIdx, &Symbol<T::PtrSizeType>)> {
+        self.symbols
+            .symbols()
+            .filter(move |(_, s)| s.section == Some(section) && range.contains(&s.offset))
+    }
 }
 
-pub struct SectionMut<'a, T: TranslationUnitMachine> {
+pub struct SectionMut<'a, T: TranslationUnitMachine + ?Sized> {
     section: &'a mut Section<T>,
     section_idx: SectionIdx,
     symbols: &'a mut Symbols<T::PtrSizeType>,
     str_table: &'a mut StringTable,
 }
 
-impl<'a, T: TranslationUnitMachine> SectionMut<'a, T> {
+impl<'a, T: TranslationUnitMachine + ?Sized> SectionMut<'a, T> {
     pub fn reloc(&mut self, reloc: T::Reloc, node: Option<NodeOwned>) -> RelocIdx {
         let reloc = self
             .section
@@ -240,7 +264,7 @@ impl<'a, T: TranslationUnitMachine> SectionMut<'a, T> {
         node: Option<NodeOwned>,
     ) -> Result<(), SymbolError> {
         let current_offset = self.section.data.current_offset();
-        let (symbol_idx, symbol) = sym_checked(
+        let (_, symbol) = sym_checked(
             symbol_idx,
             self.symbols,
             node,
@@ -255,7 +279,7 @@ impl<'a, T: TranslationUnitMachine> SectionMut<'a, T> {
         if symbol.ty == SymbolType::Unresolved {
             symbol.ty = SymbolType::Notype;
         }
-        self.section.bind_symbol(symbol_idx, current_offset);
+        // self.section.bind_symbol(symbol_idx, current_offset);
         Ok(())
     }
 
@@ -267,6 +291,27 @@ impl<'a, T: TranslationUnitMachine> SectionMut<'a, T> {
         let name = self.symbols.resolve_or_make(self.str_table.resolve(name));
         self.bind_symbol(name, symbol)
     }
+
+    // pub fn symbols_ordered(&self, range: impl std::ops::RangeBounds<T::PtrSizeType>) -> impl ExactSizeIterator<Item = (Symbol<T::PtrSizeType>)>{
+
+    //     let start_idx = self
+    //         .symbols
+    //         .partition_point(|(off, _)| match range.start_bound() {
+    //             std::ops::Bound::Included(v) => *off < *v,
+    //             std::ops::Bound::Excluded(v) => *off <= *v,
+    //             std::ops::Bound::Unbounded => false,
+    //         });
+
+    //     let end_idx = self
+    //         .symbols
+    //         .partition_point(|(off, _)| match range.end_bound() {
+    //             std::ops::Bound::Included(v) => *off <= *v,
+    //             std::ops::Bound::Excluded(v) => *off < *v,
+    //             std::ops::Bound::Unbounded => true,
+    //         });
+    //     self.symbols[start_idx..end_idx].it
+
+    // }
 }
 
 fn sym_checked<T: PrimInt>(
@@ -285,5 +330,5 @@ fn sym_checked<T: PrimInt>(
     if let Some(node) = node {
         *node_kind(dbg.or_default()) = Some(node);
     }
-    Ok((symbol_idx, symbols.symbol_mut(symbol_idx)))
+    Ok((symbol_idx, symbols.symbol_mut(symbol_idx).unwrap()))
 }

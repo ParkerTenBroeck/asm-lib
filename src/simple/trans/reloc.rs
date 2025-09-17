@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use crate::simple::trans::{TranslationUnit, TranslationUnitMachine};
+use crate::simple::trans::{TranslationUnit, TranslationUnitMachine, link::Linker};
 
 pub trait Reloc: Clone + std::fmt::Debug {
     type Machine: TranslationUnitMachine<Reloc = Self>;
@@ -10,6 +10,11 @@ pub trait Reloc: Clone + std::fmt::Debug {
         f: &mut impl std::fmt::Write,
         trans: &TranslationUnit<Self::Machine>,
     ) -> std::fmt::Result;
+
+    fn max_size(&self) -> <Self::Machine as TranslationUnitMachine>::PtrSizeType;
+    fn current_size(&self) -> <Self::Machine as TranslationUnitMachine>::PtrSizeType;
+    fn merge(&self, linker: Linker<Self::Machine>) -> Self;
+    fn resolve(&self, trans: &mut TranslationUnit<Self::Machine>);
 }
 
 #[derive(Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord, Debug)]
