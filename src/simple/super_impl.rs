@@ -242,6 +242,9 @@ impl<'a, T: SimpleAssemblyLanguage<'a>> crate::assembler::lang::AssemblyLanguage
             }
             ".align" => {
                 let Node(UptrPow2Arg::Val(align), node) = ctx.eval(self).coerced(n);
+                if let Some(align) = align {
+                    self.add_align(ctx, align, node);
+                }
             }
             ".type" => {
                 let Node(args, node) = ctx.eval(self).coerced(n);
@@ -352,8 +355,8 @@ impl<'a, T: SimpleAssemblyLanguage<'a>> crate::assembler::lang::AssemblyLanguage
             }
 
             ".section" => {
-                if let RawIdentStrArg::Val(Some(sec)) = ctx.eval(self).coerced(n).0 {
-                    self.set_section(ctx, sec, n);
+                if let Node(RawIdentStrArg::Val(Some(sec)), node) = ctx.eval(self).coerced(n) {
+                    self.set_section(ctx, sec, node);
                 }
             }
             ".text" | ".bss" | ".data" | ".rodata" => {
@@ -362,8 +365,8 @@ impl<'a, T: SimpleAssemblyLanguage<'a>> crate::assembler::lang::AssemblyLanguage
             }
 
             ".space" => {
-                if let UptrArg::Val(Some(size)) = ctx.eval(self).coerced(n).0 {
-                    self.add_space_data(ctx, size, num_traits::one(), n);
+                if let Node(UptrArg::Val(Some(size)), node) = ctx.eval(self).coerced(n) {
+                    self.add_space_data(ctx, size, num_traits::one(), node);
                 }
             }
             ".values" => {

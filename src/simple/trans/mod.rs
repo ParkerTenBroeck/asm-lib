@@ -20,7 +20,7 @@ use section::*;
 use str::*;
 use sym::*;
 
-use crate::node::NodeOwned;
+use crate::{node::NodeOwned, simple::trans::data::PushDataResult};
 
 #[derive(Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub struct SectionIdx(NonZeroUsize);
@@ -240,18 +240,42 @@ impl<'a, T: TranslationUnitMachine + ?Sized> SectionMut<'a, T> {
         reloc
     }
 
-    pub fn data(&mut self, data: &[u8], align: T::PtrSizeType, node: Option<NodeOwned>) {
-        let range = self.section.data.push_data(data, align);
-        if let Some(node) = node {
-            self.section.debug_info.emit_data_dbg(range, node)
-        }
+    pub fn data(
+        &mut self,
+        data: &[u8],
+        align: T::PtrSizeType,
+        node: Option<NodeOwned>,
+    ) -> PushDataResult<std::ops::Range<T::PtrSizeType>> {
+        self.section.data.push_data(data, align).inspect(|range| {
+            if let Some(node) = node {
+                self.section.debug_info.emit_data_dbg(range.clone(), node);
+            }
+        })
     }
 
-    pub fn space(&mut self, space: T::PtrSizeType, align: T::PtrSizeType, node: Option<NodeOwned>) {
-        let range = self.section.data.push_space(space, align);
-        if let Some(node) = node {
-            self.section.debug_info.emit_data_dbg(range, node)
-        }
+    pub fn space(
+        &mut self,
+        space: T::PtrSizeType,
+        align: T::PtrSizeType,
+        node: Option<NodeOwned>,
+    ) -> PushDataResult<std::ops::Range<T::PtrSizeType>> {
+        self.section.data.push_space(space, align).inspect(|range| {
+            if let Some(node) = node {
+                self.section.debug_info.emit_data_dbg(range.clone(), node);
+            }
+        })
+    }
+
+    pub fn align(
+        &mut self,
+        align: T::PtrSizeType,
+        node: Option<NodeOwned>,
+    ) -> PushDataResult<std::ops::Range<T::PtrSizeType>> {
+        self.section.data.push_align(align).inspect(|range| {
+            if let Some(node) = node {
+                self.section.debug_info.emit_data_dbg(range.clone(), node);
+            }
+        })
     }
 
     pub fn emit_comment_dbg(&mut self, comment: &str, _node: NodeOwned) {
@@ -280,7 +304,6 @@ impl<'a, T: TranslationUnitMachine + ?Sized> SectionMut<'a, T> {
         if symbol.ty == SymbolType::Unresolved {
             symbol.ty = SymbolType::Notype;
         }
-        // self.section.bind_symbol(symbol_idx, current_offset);
         Ok(())
     }
 
@@ -292,27 +315,6 @@ impl<'a, T: TranslationUnitMachine + ?Sized> SectionMut<'a, T> {
         let name = self.symbols.resolve_or_make(self.str_table.resolve(name));
         self.bind_symbol(name, symbol)
     }
-
-    // pub fn symbols_ordered(&self, range: impl std::ops::RangeBounds<T::PtrSizeType>) -> impl ExactSizeIterator<Item = (Symbol<T::PtrSizeType>)>{
-
-    //     let start_idx = self
-    //         .symbols
-    //         .partition_point(|(off, _)| match range.start_bound() {
-    //             std::ops::Bound::Included(v) => *off < *v,
-    //             std::ops::Bound::Excluded(v) => *off <= *v,
-    //             std::ops::Bound::Unbounded => false,
-    //         });
-
-    //     let end_idx = self
-    //         .symbols
-    //         .partition_point(|(off, _)| match range.end_bound() {
-    //             std::ops::Bound::Included(v) => *off <= *v,
-    //             std::ops::Bound::Excluded(v) => *off < *v,
-    //             std::ops::Bound::Unbounded => true,
-    //         });
-    //     self.symbols[start_idx..end_idx].it
-
-    // }
 }
 
 fn sym_checked<T: PrimInt>(

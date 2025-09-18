@@ -6,6 +6,7 @@ use crate::{
     LogEntry, Logs, NodeOwned,
     simple::trans::{
         SectionIdx, TranslationUnit, TranslationUnitMachine,
+        data::PushDataResult,
         reloc::{Reloc, RelocOffset},
         sym::{Symbol, SymbolDbg, SymbolIdx, SymbolType, SymbolVisibility},
     },
@@ -48,10 +49,20 @@ impl<M: TranslationUnitMachine> Merger<M> {
             let into_section =
                 into.resolve_mut(from.get_str(from_section.name()).unwrap_or_default());
 
-            into_section
+            let result = into_section
                 .section
                 .data
                 .push_align(from_section.data().align());
+
+            if let PushDataResult::NotEnoughSpace = result {
+                self.logs.report_error_locless(format!(
+                    "section '{}' exceeded maximum size",
+                    from.str_table
+                        .get(from_section.name())
+                        .unwrap_or_default()
+                        .escape_debug()
+                ));
+            }
 
             self.section_map.insert(
                 from_section_idx,
@@ -62,10 +73,20 @@ impl<M: TranslationUnitMachine> Merger<M> {
                 ),
             );
 
-            into_section
+            let result = into_section
                 .section
                 .data
                 .push_data(from_section.data().slice(), from_section.data().align());
+
+            if let PushDataResult::NotEnoughSpace = result {
+                self.logs.report_error_locless(format!(
+                    "section '{}' exceeded maximum size",
+                    from.str_table
+                        .get(from_section.name())
+                        .unwrap_or_default()
+                        .escape_debug()
+                ));
+            }
         }
 
         for (from_symbol_idx, from_symbol) in from.symbols.symbols() {
@@ -95,7 +116,7 @@ impl<M: TranslationUnitMachine> Merger<M> {
                     None => {
                         self.logs.report_error(
                             data_dbg.node.clone(),
-                            "data range overflowed when merging",
+                            "data range overflowed while mergineging",
                         );
                         return;
                     }
@@ -106,7 +127,7 @@ impl<M: TranslationUnitMachine> Merger<M> {
                     None => {
                         self.logs.report_error(
                             data_dbg.node.clone(),
-                            "data range overflowed when merging",
+                            "data range overflowed while mergineging",
                         );
                         return;
                     }
@@ -134,7 +155,8 @@ impl<M: TranslationUnitMachine> Merger<M> {
                             .emit(offset, reloc.offset(self, *reloc_offset));
                     }
                     None => {
-                        let mut str = "relocation offset overflowed when merging: '".to_owned();
+                        let mut str =
+                            "relocation offset overflowed while mergineging: '".to_owned();
                         reloc.display(&mut str, from).unwrap();
                         str.push('\'');
                         if let Some(dbg) = from_section.debug_info.resolve_reloc_dbg(from_reloc_idx)
@@ -179,13 +201,13 @@ impl<M: TranslationUnitMachine> Merger<M> {
                         self.logs.report_error(
                             node,
                             format!(
-                                "symbol offset overflowed when merging: '{}'",
+                                "symbol offset overflowed while mergineging: '{}'",
                                 name_str.escape_debug()
                             ),
                         );
                     } else {
                         self.logs.report_error_locless(format!(
-                            "symbol offset overflowed when merging: '{}'",
+                            "symbol offset overflowed while mergineging: '{}'",
                             name_str.escape_debug()
                         ));
                     }

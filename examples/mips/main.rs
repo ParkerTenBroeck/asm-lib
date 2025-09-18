@@ -166,7 +166,6 @@ other_function: .global; .type func;
 other_data:  .global;
     .values some_function 
 
-
 .section .data.stack 
     _stack_end: .global; .align 1<<12; .space 1<<12
     _stack_start: .size 1<<12; .global

@@ -137,11 +137,7 @@ impl<'a> MipsAssembler<'a> {
         node: assembler::NodeRef<'a>,
         ins: u32,
     ) {
-        self.current_section_mut(ctx, node).data(
-            &ins.to_be_bytes(),
-            4,
-            Some(ctx.context.node_to_owned(node)),
-        );
+        self.add_data(ctx, &ins.to_be_bytes(), 4, node);
     }
 
     pub fn instruction_reloc(
@@ -153,11 +149,8 @@ impl<'a> MipsAssembler<'a> {
     ) {
         self.current_section_mut(ctx, node)
             .reloc(reloc, Some(ctx.context.node_to_owned(node)));
-        self.current_section_mut(ctx, node).data(
-            &ins.to_be_bytes(),
-            4,
-            Some(ctx.context.node_to_owned(node)),
-        );
+
+        self.add_data(ctx, &ins.to_be_bytes(), 4, node);
     }
     pub fn r_type_rd_rs_rt(
         &mut self,

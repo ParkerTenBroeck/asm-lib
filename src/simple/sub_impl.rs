@@ -1,5 +1,9 @@
 use crate::{
-    assembler::LangCtx, context::NodeRef, expression::Constant, simple::trans::SectionMut,
+    LogEntry,
+    assembler::LangCtx,
+    context::NodeRef,
+    expression::Constant,
+    simple::trans::{SectionMut, data::PushDataResult},
 };
 
 use super::*;
@@ -89,11 +93,12 @@ pub trait SimpleAssemblyLanguageBase<'a>: SimpleAssemblyLanguage<'a> {
         align: Self::Uptr,
         node: NodeRef<'a>,
     ) {
-        self.current_section_mut(ctx, node).data(
+        let result = self.current_section_mut(ctx, node).data(
             data,
             align,
             Some(ctx.context.node_to_owned(node)),
         );
+        self.report_data_result(ctx, result, align, node);
     }
 
     fn add_space_data(
@@ -103,11 +108,20 @@ pub trait SimpleAssemblyLanguageBase<'a>: SimpleAssemblyLanguage<'a> {
         align: Self::Uptr,
         node: NodeRef<'a>,
     ) {
-        self.current_section_mut(ctx, node).space(
+        let result = self.current_section_mut(ctx, node).space(
             space,
             align,
             Some(ctx.context.node_to_owned(node)),
         );
+        self.report_data_result(ctx, result, align, node);
+    }
+
+    fn add_align(&mut self, ctx: &mut LangCtx<'a, '_, Self>, align: Self::Uptr, node: NodeRef<'a>) {
+        let result = self
+            .current_section_mut(ctx, node)
+            .align(align, Some(ctx.context.node_to_owned(node)))
+            .ignore_warning();
+        self.report_data_result(ctx, result, align, node);
     }
 
     fn set_section(&mut self, _: &mut LangCtx<'a, '_, Self>, section: &'a str, _: NodeRef<'a>) {
@@ -127,4 +141,40 @@ pub trait SimpleAssemblyLanguageBase<'a>: SimpleAssemblyLanguage<'a> {
     }
 }
 
+trait PrivateSimpleAssemblyLanguageBase<'a>: SimpleAssemblyLanguage<'a> {
+    fn report_data_result<T>(
+        &mut self,
+        ctx: &mut LangCtx<'a, '_, Self>,
+        result: PushDataResult<T>,
+        align: Self::Uptr,
+        node: NodeRef<'a>,
+    ) {
+        match result {
+            PushDataResult::Ok(_) => {}
+            PushDataResult::WarningAlign(_) => {
+                ctx.context.report(
+                    LogEntry::new()
+                        .warning(node, "data is implicitly aligned")
+                        .hint_locless(format!(
+                            "consider adding '.align {align}' before defining the value"
+                        )),
+                );
+            }
+            PushDataResult::NotEnoughSpace => {
+                ctx.context.report_error(
+                    node,
+                    format!(
+                        "section '{}' exceeded maximum size",
+                        self.state()
+                            .current_section
+                            .unwrap_or_default()
+                            .escape_debug()
+                    ),
+                );
+            }
+        }
+    }
+}
+
 impl<'a, T: SimpleAssemblyLanguage<'a>> SimpleAssemblyLanguageBase<'a> for T {}
+impl<'a, T: SimpleAssemblyLanguage<'a>> PrivateSimpleAssemblyLanguageBase<'a> for T {}
