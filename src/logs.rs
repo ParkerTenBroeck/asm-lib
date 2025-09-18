@@ -14,6 +14,13 @@ impl<T: NodeTrait> Default for Logs<T> {
     }
 }
 
+#[derive(Clone, Copy, Hash, PartialEq, Eq)]
+pub struct LogCount {
+    pub total: usize,
+    pub warnings: usize,
+    pub errors: usize,
+}
+
 impl<T: NodeTrait> Logs<T> {
     pub const fn new() -> Self {
         Self { logs: Vec::new() }
@@ -55,6 +62,29 @@ impl<T: NodeTrait> Logs<T> {
         let mut other = Self::new();
         std::mem::swap(self, &mut other);
         other
+    }
+
+    pub fn display(&self, f: &mut std::fmt::Formatter) -> Result<LogCount, std::fmt::Error> {
+        let mut errors = 0;
+        let mut warnings = 0;
+        for log in &self.logs {
+            errors += log
+                .parts
+                .iter()
+                .filter(|t| t.kind == LogKind::Error)
+                .count();
+            warnings += log
+                .parts
+                .iter()
+                .filter(|t| t.kind == LogKind::Warning)
+                .count();
+            writeln!(f, "{log}")?;
+        }
+        Ok(LogCount {
+            total: self.logs.len(),
+            warnings,
+            errors,
+        })
     }
 }
 

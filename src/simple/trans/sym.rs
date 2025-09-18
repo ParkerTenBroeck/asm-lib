@@ -5,10 +5,7 @@ use num_traits::PrimInt;
 use crate::{
     logs::LogEntry,
     node::NodeOwned,
-    simple::trans::{
-        SectionIdx, TranslationUnitMachine,
-        str::{StrIdx, StringTable},
-    },
+    simple::trans::{SectionIdx, str::StrIdx},
 };
 
 #[derive(Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord, Debug)]
@@ -90,27 +87,13 @@ impl<T: PrimInt> Symbol<T> {
         }
     }
 
-    pub fn name(&self) -> StrIdx {
-        self.name
+    pub fn with_name(mut self, name: StrIdx) -> Self {
+        self.name = name;
+        self
     }
 
-    pub fn merge<M: TranslationUnitMachine<PtrSizeType = T>>(
-        &self,
-        str_table: &StringTable,
-        linker: &mut super::link::Linker<M>,
-    ) -> Symbol<T> {
-        let mut copy = *self;
-
-        //TODO
-        if let Some(section) = copy.section {
-            copy.offset = copy.offset.saturating_add(linker.section_offset(section));
-        }
-
-        copy.name = linker
-            .str_table()
-            .resolve(str_table.get(copy.name).unwrap_or_default());
-
-        copy
+    pub fn name(&self) -> StrIdx {
+        self.name
     }
 }
 
@@ -164,6 +147,16 @@ pub struct SymbolDbg {
     pub size: Option<NodeOwned>,
 }
 
+impl SymbolDbg {
+    pub fn location_best_effort(&self) -> Option<&NodeOwned> {
+        self.definition
+            .as_ref()
+            .or(self.visibility.as_ref())
+            .or(self.ty.as_ref())
+            .or(self.size.as_ref())
+    }
+}
+
 impl<T: PrimInt> Symbols<T> {
     pub fn new() -> Self {
         Self {
@@ -200,9 +193,8 @@ impl<T: PrimInt> Symbols<T> {
         self.symbol_map.retain(|_, e| {
             self.symbols
                 .get_mut(e.0)
-                .map(|s| s.visibility)
-                .unwrap_or(SymbolVisibility::Local)
-                != SymbolVisibility::Local
+                .map(|s| s.visibility != SymbolVisibility::Local || s.ty == SymbolType::Unresolved)
+                .unwrap_or(false)
         });
     }
 
@@ -235,9 +227,16 @@ impl<T: PrimInt> Symbols<T> {
     pub fn create_bound(&mut self, sym: Symbol<T>, dbg: Option<SymbolDbg>) -> SymbolIdx {
         let symbol_idx = SymbolIdx(self.symbols.len());
         self.symbols.push(sym);
+        self.symbol_map.insert(sym.name, symbol_idx);
         if let Some(dbg) = dbg {
             self.symbol_dbg_map.insert(symbol_idx, dbg);
         }
         symbol_idx
+    }
+
+    pub fn set_symbol_dbg(&mut self, symbol_idx: SymbolIdx, dbg: Option<SymbolDbg>) {
+        if let Some(dbg) = dbg {
+            self.symbol_dbg_map.insert(symbol_idx, dbg);
+        }
     }
 }

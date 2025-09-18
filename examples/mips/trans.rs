@@ -3,7 +3,8 @@ use assembler::{
     simple::trans::{
         SectionIdx, TranslationUnit, TranslationUnitMachine,
         display::{RightPad, fmt_section_disassembly},
-        reloc::Reloc,
+        merge::Merger,
+        reloc::{Reloc, RelocOffset},
         section::Section,
         sym::SymbolIdx,
     },
@@ -446,11 +447,32 @@ impl Reloc for MipsReloc {
         4
     }
 
-    fn merge(&mut self) {
-        todo!()
+    fn offset(&self, merger: &Merger<Self::Machine>, _: RelocOffset) -> Self {
+        let calculation = match self.calculation {
+            MipsRelocCalc::Absolute(symbol_idx) => {
+                MipsRelocCalc::Absolute(merger.resolve_symbol(symbol_idx))
+            }
+            MipsRelocCalc::Pcrel(symbol_idx) => {
+                MipsRelocCalc::Pcrel(merger.resolve_symbol(symbol_idx))
+            }
+            MipsRelocCalc::Size(symbol_idx) => {
+                MipsRelocCalc::Size(merger.resolve_symbol(symbol_idx))
+            }
+            MipsRelocCalc::Align(symbol_idx) => {
+                MipsRelocCalc::Align(merger.resolve_symbol(symbol_idx))
+            }
+            MipsRelocCalc::Sub(lhs_symbol_idx, rhs_symbol_idx) => MipsRelocCalc::Sub(
+                merger.resolve_symbol(lhs_symbol_idx),
+                merger.resolve_symbol(rhs_symbol_idx),
+            ),
+        };
+        Self {
+            pattern: self.pattern,
+            calculation,
+            offset: self.offset,
+            overflow: self.overflow,
+        }
     }
 
-    fn resolve(&self, trans: &mut TranslationUnit<Self::Machine>) {
-        todo!()
-    }
+    fn resolve(&self, trans: &mut TranslationUnit<Self::Machine>) {}
 }

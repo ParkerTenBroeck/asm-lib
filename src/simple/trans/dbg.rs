@@ -53,6 +53,10 @@ impl<T: PrimInt> DebugInfo<T> {
         self.relocs.get(&reloc_idx)
     }
 
+    pub fn reloc_dbg(&self) -> impl ExactSizeIterator<Item = (&RelocIdx, &NodeOwned)> {
+        self.relocs.iter()
+    }
+
     pub fn resolve_data_dbg(&self, range: impl std::ops::RangeBounds<T> + Debug) -> &[DataDbg<T>] {
         let start_idx = self.data.partition_point(|dbg| match range.start_bound() {
             std::ops::Bound::Included(start) => *start > dbg.range.start && *start >= dbg.range.end,

@@ -8,6 +8,7 @@ pub mod data;
 pub mod dbg;
 pub mod display;
 pub mod link;
+pub mod merge;
 pub mod reloc;
 pub mod section;
 pub mod seder;

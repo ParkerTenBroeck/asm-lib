@@ -1,6 +1,6 @@
-use std::fmt::Debug;
+use std::{fmt::Debug, ops::Add};
 
-use crate::simple::trans::{TranslationUnit, TranslationUnitMachine, link::Linker};
+use crate::simple::trans::{TranslationUnit, TranslationUnitMachine, merge::Merger};
 
 pub trait Reloc: Clone + std::fmt::Debug {
     type Machine: TranslationUnitMachine<Reloc = Self>;
@@ -13,12 +13,20 @@ pub trait Reloc: Clone + std::fmt::Debug {
 
     fn max_size(&self) -> <Self::Machine as TranslationUnitMachine>::PtrSizeType;
     fn current_size(&self) -> <Self::Machine as TranslationUnitMachine>::PtrSizeType;
-    fn merge(&self, linker: Linker<Self::Machine>) -> Self;
+    fn offset(&self, merger: &Merger<Self::Machine>, offset: RelocOffset) -> Self;
     fn resolve(&self, trans: &mut TranslationUnit<Self::Machine>);
 }
 
 #[derive(Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub struct RelocIdx(usize);
+impl RelocIdx {
+    pub fn offset(&self, reloc_offset: RelocOffset) -> RelocIdx {
+        Self(self.0.add(reloc_offset.0))
+    }
+}
+
+#[derive(Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord, Debug)]
+pub struct RelocOffset(usize);
 
 pub struct Relocations<T: TranslationUnitMachine + ?Sized> {
     relocs: Vec<(T::PtrSizeType, T::Reloc)>,
@@ -69,6 +77,10 @@ impl<T: TranslationUnitMachine + ?Sized> Relocations<T> {
     pub fn emit(&mut self, offset: T::PtrSizeType, reloc: T::Reloc) -> RelocIdx {
         self.relocs.push((offset, reloc));
         RelocIdx(self.relocs.len() - 1)
+    }
+
+    pub(crate) fn offset(&self) -> RelocOffset {
+        RelocOffset(self.relocs.len())
     }
 }
 

@@ -23,7 +23,7 @@ pub use logs::*;
 pub use preprocess::PreProcessor;
 
 use bumpalo::Bump;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
 use crate::source::Sources;
@@ -42,6 +42,7 @@ pub fn assemble<'a, L: AssemblyLanguage<'a>>(
     let output = Assembler::assemble(&mut context, &mut lang, &mut preprocessor);
 
     AssemblerResult {
+        path: source.to_path_buf(),
         allocated: bump.allocated_bytes(),
         time: now.elapsed(),
         output,
@@ -50,6 +51,7 @@ pub fn assemble<'a, L: AssemblyLanguage<'a>>(
 }
 
 pub struct AssemblerResult<T> {
+    pub path: PathBuf,
     pub time: Duration,
     pub allocated: usize,
     pub output: T,
@@ -59,22 +61,9 @@ pub struct AssemblerResult<T> {
 impl<T> std::fmt::Display for AssemblerResult<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         use crate::ansi::*;
-        use crate::logs::*;
-        let mut errors = 0;
-        let mut warnings = 0;
-        for log in &self.log {
-            errors += log
-                .parts
-                .iter()
-                .filter(|t| t.kind == LogKind::Error)
-                .count();
-            warnings += log
-                .parts
-                .iter()
-                .filter(|t| t.kind == LogKind::Warning)
-                .count();
-            writeln!(f, "{log}")?;
-        }
+        let LogCount {
+            errors, warnings, ..
+        } = self.log.display(f)?;
 
         if warnings > 0 {
             writeln!(
@@ -85,14 +74,16 @@ impl<T> std::fmt::Display for AssemblerResult<T> {
         if errors > 0 {
             writeln!(
                 f,
-                "{BOLD}{RED}error{RESET}{BOLD}: could not assemble due to {errors} error(s). took {}s allocated {}b{RESET}",
+                "{BOLD}{RED}error{RESET}{BOLD}: could not assemble '{}' due to {errors} error(s). took {}s allocated {}b{RESET}",
+                self.path.display(),
                 self.time.as_secs_f64(),
                 self.allocated
             )
         } else {
             writeln!(
                 f,
-                "{BOLD}{GREEN}Finished{RESET}{BOLD} in {}s allocated {}b{RESET}",
+                "{BOLD}{GREEN}Finished{RESET}{BOLD} assembling '{}' in {}s allocated {}b{RESET}",
+                self.path.display(),
                 self.time.as_secs_f64(),
                 self.allocated
             )
